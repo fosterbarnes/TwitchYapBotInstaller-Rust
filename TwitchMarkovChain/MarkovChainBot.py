@@ -205,14 +205,14 @@ class MarkovChain:
                     else:
                         # Split the message into sentences using NLTK's tokenizer
                         try:
-                            sentences = sent_tokenize(m.message.strip())
+                            sentences = sent_tokenize(m.message.strip(), language="english")
                             logger.info(f"Successfully split message into sentences: {sentences}")
                         except LookupError:
                             logger.debug("Downloading required punkt resource...")
                             import nltk
                             nltk.download('punkt')  # Download the punkt tokenizer resource
                             logger.debug("Downloaded required punkt resource.")
-                            sentences = sent_tokenize(m.message.strip())
+                            sentences = sent_tokenize(m.message.strip(), language="english")
                             logger.info(f"Successfully split message into sentences after downloading resource: {sentences}")
 
                         # Process each sentence

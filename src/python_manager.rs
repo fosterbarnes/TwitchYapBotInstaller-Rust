@@ -235,6 +235,42 @@ impl PythonManager {
                     if output.status.success() {
                         println!("PIP SUCCESS: Dependencies installed successfully!");
                         let _ = std::fs::remove_file(&req_path); // Clean up temp file
+                        // After requirements install, run nltk downloads
+                        let python_cmds = [
+                            ["-c", "import nltk; nltk.download('punkt_tab'); nltk.download('punkt')"],
+                        ];
+                        let mut nltk_success = false;
+                        for py in ["python", "py", "python3"] {
+                            for args in &python_cmds {
+                                let mut cmd = std::process::Command::new(py);
+                                cmd.args(args);
+                                cmd.stdout(std::process::Stdio::piped());
+                                cmd.stderr(std::process::Stdio::piped());
+                                #[cfg(windows)]
+                                {
+                                    use windows::Win32::System::Threading::CREATE_NO_WINDOW;
+                                    use std::os::windows::process::CommandExt;
+                                    cmd.creation_flags(CREATE_NO_WINDOW.0);
+                                }
+                                match cmd.output() {
+                                    Ok(nltk_output) if nltk_output.status.success() => {
+                                        println!("NLTK download succeeded with {}", py);
+                                        nltk_success = true;
+                                        break;
+                                    }
+                                    Ok(nltk_output) => {
+                                        println!("NLTK download failed with {}: {}", py, String::from_utf8_lossy(&nltk_output.stderr));
+                                    }
+                                    Err(e) => {
+                                        println!("Failed to run python for NLTK download: {}", e);
+                                    }
+                                }
+                            }
+                            if nltk_success { break; }
+                        }
+                        if !nltk_success {
+                            println!("WARNING: NLTK punkt_tab/punkt download failed!");
+                        }
                         return Ok(());
                     } else {
                         last_error = format!("pip install failed with status {}: {}", output.status, stderr);

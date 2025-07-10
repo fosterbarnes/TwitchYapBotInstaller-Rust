@@ -550,8 +550,11 @@ impl YapBotInstaller {
                                 ui.add_space(8.0);
                             }
                             // DB migration prompt as part of Step 4
-                            if self.step4_action_index >= 2 && !self.step4_db_prompt_answered {
+                            // Only show DB prompt after all actions (including shortcut creation) are complete
+                            if self.step4_action_index >= 2 && !self.step4_db_prompt_answered && self.step4_action_index == 4 {
                                 self.step4_db_prompt_visible = true;
+                            } else {
+                                self.step4_db_prompt_visible = false;
                             }
                             if self.step4_db_prompt_visible {
                                 ui.add_space(16.0);
