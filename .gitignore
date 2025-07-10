@@ -1,3 +1,5 @@
 target/
 System Volume Information/
 YapBotInstallerSettings.json
+Cargo.lock
+YapBot.code-workspace
