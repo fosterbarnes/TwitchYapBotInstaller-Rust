@@ -302,7 +302,7 @@ impl YapBotInstaller {
                     .margin(egui::Margin::symmetric(8.0, 4.0)));
                 ui.add_space(10.0);
                 // Bot Channel Name
-                ui.label(egui::RichText::new("Bot Channel Name (The account for your bot. if you do not have a bot account, enter your main channel name):").size(13.0));
+                ui.label(egui::RichText::new("Bot Channel Name (Using your main channel will not work correctly. Create an alt twitch account if you don't have one):").size(13.0));
                 ui.add_space(5.0);
                 ui.add_sized([
                     field_width.max(100.0), 0.0
