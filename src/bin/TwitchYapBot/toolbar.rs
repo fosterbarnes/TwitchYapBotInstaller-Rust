@@ -8,13 +8,11 @@ use crate::bot_manager;
 use std::io::Read;
 use rand::Rng;
 use std::sync::mpsc::{self, Sender, Receiver};
-use std::cell::RefCell;
+use std::panic;
+use std::sync::{Mutex, OnceLock};
 
-// Use RefCell for safer static mut
-thread_local! {
-    static UPDATE_RESULT_TX: RefCell<Option<Sender<Result<(), String>>>> = RefCell::new(None);
-    static UPDATE_RESULT_RX: RefCell<Option<Receiver<Result<(), String>>>> = RefCell::new(None);
-}
+static UPDATE_RESULT_TX: OnceLock<Mutex<Option<Sender<Result<(), String>>>>> = OnceLock::new();
+static UPDATE_RESULT_RX: OnceLock<Mutex<Option<Receiver<Result<(), String>>>>> = OnceLock::new();
 
 // Spinner drawing function (copied from installer)
 fn draw_spinner(ui: &mut egui::Ui, color: egui::Color32) {
@@ -39,8 +37,10 @@ fn draw_spinner(ui: &mut egui::Ui, color: egui::Color32) {
 
 pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &mut eframe::Frame) {
     // Poll for update completion
-    let update_result = UPDATE_RESULT_RX.with(|rx_cell| {
-        if let Some(rx) = &*rx_cell.borrow() {
+    let update_result = {
+        let rx_mutex = UPDATE_RESULT_RX.get_or_init(|| Mutex::new(None));
+        let rx_opt = rx_mutex.lock().unwrap();
+        if let Some(rx) = &*rx_opt {
             match rx.try_recv() {
                 Ok(res) => Some(res),
                 Err(mpsc::TryRecvError::Empty) => None,
@@ -49,9 +49,11 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
         } else {
             None
         }
-    });
+    };
     if let Some(result) = update_result {
         app.updating = false;
+        // Debug log: result received
+        app.output_lines.lock().unwrap().push_back(format!("[DEBUG] Update result received: {:?}", result));
         match result {
             Ok(()) => {
                 // Success: launch updater and exit
@@ -73,8 +75,10 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
             }
         }
         // Clear the channel after use
-        UPDATE_RESULT_RX.with(|rx_cell| rx_cell.replace(None));
-        UPDATE_RESULT_TX.with(|tx_cell| tx_cell.replace(None));
+        let rx_mutex = UPDATE_RESULT_RX.get_or_init(|| Mutex::new(None));
+        rx_mutex.lock().unwrap().take();
+        let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+        tx_mutex.lock().unwrap().take();
     }
     egui::TopBottomPanel::top("title").show(ctx, |ui| {
         let mut update_section_shown = false;
@@ -125,59 +129,66 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                                 app.updating = true;
                                 // Create a channel for update completion
                                 let (tx, rx) = mpsc::channel();
-                                UPDATE_RESULT_TX.with(|tx_cell| tx_cell.replace(Some(tx)));
-                                UPDATE_RESULT_RX.with(|rx_cell| rx_cell.replace(Some(rx)));
+                                let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+                                *tx_mutex.lock().unwrap() = Some(tx);
+                                let rx_mutex = UPDATE_RESULT_RX.get_or_init(|| Mutex::new(None));
+                                *rx_mutex.lock().unwrap() = Some(rx);
                                 std::thread::spawn(move || {
-                                    let updater_url = "https://raw.githubusercontent.com/fosterbarnes/TwitchYapBotInstaller-Rust/main/resources/updater/YapBotUpdater.exe";
-                                    let mut download_error: Option<String> = None;
-                                    match reqwest::blocking::get(updater_url) {
-                                        Ok(resp) => {
-                                            if resp.status().is_success() {
-                                                let bytes = resp.bytes().map(|b| b.to_vec()).unwrap_or_else(|e| {
-                                                    download_error = Some(format!("Failed to read updater bytes: {}", e));
-                                                    Vec::new()
-                                                });
-                                                if download_error.is_none() {
-                                                    if let Ok(tmp) = std::env::temp_dir().join("YapBotUpdater.exe").into_os_string().into_string() {
-                                                        match std::fs::write(&tmp, &bytes) {
-                                                            Ok(_) => {
-                                                                if let Ok(appdata) = std::env::var("APPDATA") {
-                                                                    let dest = std::path::Path::new(&appdata).join("YapBot").join("YapBotUpdater.exe");
-                                                                    if let Err(e) = std::fs::copy(&tmp, &dest) {
-                                                                        download_error = Some(format!("Failed to copy updater to AppData: {}", e));
+                                    let thread_result = panic::catch_unwind(|| {
+                                        let updater_url = "https://raw.githubusercontent.com/fosterbarnes/TwitchYapBotInstaller-Rust/main/resources/updater/YapBotUpdater.exe";
+                                        let mut download_error: Option<String> = None;
+                                        match reqwest::blocking::get(updater_url) {
+                                            Ok(resp) => {
+                                                if resp.status().is_success() {
+                                                    let bytes = resp.bytes().map(|b| b.to_vec()).unwrap_or_else(|e| {
+                                                        download_error = Some(format!("Failed to read updater bytes: {}", e));
+                                                        Vec::new()
+                                                    });
+                                                    if download_error.is_none() {
+                                                        if let Ok(tmp) = std::env::temp_dir().join("YapBotUpdater.exe").into_os_string().into_string() {
+                                                            match std::fs::write(&tmp, &bytes) {
+                                                                Ok(_) => {
+                                                                    if let Ok(appdata) = std::env::var("APPDATA") {
+                                                                        let dest = std::path::Path::new(&appdata).join("YapBot").join("YapBotUpdater.exe");
+                                                                        if let Err(e) = std::fs::copy(&tmp, &dest) {
+                                                                            download_error = Some(format!("Failed to copy updater to AppData: {}", e));
+                                                                        }
+                                                                    } else {
+                                                                        download_error = Some("Could not get APPDATA path".to_string());
                                                                     }
-                                                                } else {
-                                                                    download_error = Some("Could not get APPDATA path".to_string());
+                                                                }
+                                                                Err(e) => {
+                                                                    download_error = Some(format!("Failed to write temp updater: {}", e));
                                                                 }
                                                             }
-                                                            Err(e) => {
-                                                                download_error = Some(format!("Failed to write temp updater: {}", e));
-                                                            }
+                                                        } else {
+                                                            download_error = Some("Could not get temp file path".to_string());
                                                         }
-                                                    } else {
-                                                        download_error = Some("Could not get temp file path".to_string());
                                                     }
+                                                } else {
+                                                    download_error = Some(format!("Failed to download updater: HTTP {}", resp.status()));
                                                 }
-                                            } else {
-                                                download_error = Some(format!("Failed to download updater: HTTP {}", resp.status()));
+                                            }
+                                            Err(e) => {
+                                                download_error = Some(format!("Failed to download updater: {}", e));
                                             }
                                         }
-                                        Err(e) => {
-                                            download_error = Some(format!("Failed to download updater: {}", e));
-                                        }
-                                    }
-                                    if let Some(err) = download_error {
-                                        UPDATE_RESULT_TX.with(|tx_cell| {
-                                            if let Some(tx) = &*tx_cell.borrow() {
+                                        let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+                                        if let Some(err) = download_error {
+                                            if let Some(tx) = &*tx_mutex.lock().unwrap() {
                                                 let _ = tx.send(Err(err));
                                             }
-                                        });
-                                    } else {
-                                        UPDATE_RESULT_TX.with(|tx_cell| {
-                                            if let Some(tx) = &*tx_cell.borrow() {
+                                        } else {
+                                            if let Some(tx) = &*tx_mutex.lock().unwrap() {
                                                 let _ = tx.send(Ok(()));
                                             }
-                                        });
+                                        }
+                                    });
+                                    if thread_result.is_err() {
+                                        let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+                                        if let Some(tx) = &*tx_mutex.lock().unwrap() {
+                                            let _ = tx.send(Err("Update thread panicked".to_string()));
+                                        }
                                     }
                                 });
                             }
