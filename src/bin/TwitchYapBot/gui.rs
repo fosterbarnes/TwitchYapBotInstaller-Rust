@@ -139,6 +139,7 @@ pub struct TwitchYapBotApp {
     pub installing_python: bool,
     pub installing_dependencies: bool,
     pub step4_action_running: bool,
+    pub updating: bool,
 }
 
 impl Default for TwitchYapBotApp {
@@ -171,6 +172,7 @@ impl Default for TwitchYapBotApp {
             installing_python: false,
             installing_dependencies: false,
             step4_action_running: false,
+            updating: false,
         }
     }
 }
@@ -232,6 +234,9 @@ impl App for TwitchYapBotApp {
             ctx.request_repaint_after(std::time::Duration::from_millis(16)); // 60 FPS for spinner/animation
         } else {
             ctx.request_repaint_after(std::time::Duration::from_millis(250)); // 4 FPS idle
+        }
+        if self.updating {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
         }
     }
 

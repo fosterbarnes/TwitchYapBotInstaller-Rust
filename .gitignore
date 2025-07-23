@@ -3,6 +3,7 @@ System Volume Information/
 YapBotInstallerSettings.json
 Cargo.lock
 YapBot.code-workspace
+YapBotInstaller.code-workspace
 MarkovChain_fosterbarnes.db
 patch notes.txt
 build.ps1

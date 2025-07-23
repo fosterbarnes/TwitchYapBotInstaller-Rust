@@ -7,8 +7,75 @@ use crate::buttons;
 use crate::bot_manager;
 use std::io::Read;
 use rand::Rng;
+use std::sync::mpsc::{self, Sender, Receiver};
+use std::cell::RefCell;
+
+// Use RefCell for safer static mut
+thread_local! {
+    static UPDATE_RESULT_TX: RefCell<Option<Sender<Result<(), String>>>> = RefCell::new(None);
+    static UPDATE_RESULT_RX: RefCell<Option<Receiver<Result<(), String>>>> = RefCell::new(None);
+}
+
+// Spinner drawing function (copied from installer)
+fn draw_spinner(ui: &mut egui::Ui, color: egui::Color32) {
+    let time = ui.ctx().input(|i| i.time) as f32;
+    let rotation_speed = 4.0;
+    let angle = (time * rotation_speed) % (2.0 * std::f32::consts::PI);
+    let center = ui.cursor().min + egui::vec2(8.0, 8.0);
+    let radius = 6.0;
+    let painter = ui.painter();
+    let start_angle = angle;
+    let end_angle = angle + std::f32::consts::PI * 1.5;
+    let segments = 20;
+    let angle_step = (end_angle - start_angle) / segments as f32;
+    for i in 0..segments {
+        let angle1 = start_angle + i as f32 * angle_step;
+        let angle2 = start_angle + (i + 1) as f32 * angle_step;
+        let p1 = center + egui::vec2(radius * angle1.cos(), radius * angle1.sin());
+        let p2 = center + egui::vec2(radius * angle2.cos(), radius * angle2.sin());
+        painter.line_segment([p1, p2], egui::Stroke::new(2.0, color));
+    }
+}
 
 pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    // Poll for update completion
+    let update_result = UPDATE_RESULT_RX.with(|rx_cell| {
+        if let Some(rx) = &*rx_cell.borrow() {
+            match rx.try_recv() {
+                Ok(res) => Some(res),
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    });
+    if let Some(result) = update_result {
+        app.updating = false;
+        match result {
+            Ok(()) => {
+                // Success: launch updater and exit
+                bot_manager::stop_bot(app);
+                if let Ok(appdata) = std::env::var("APPDATA") {
+                    let exe_path = std::path::Path::new(&appdata)
+                        .join("YapBot")
+                        .join("YapBotUpdater.exe");
+                    let _ = std::process::Command::new(exe_path)
+                        .spawn();
+                }
+                std::process::exit(0);
+            }
+            Err(err) => {
+                use chrono::Local;
+                let now = Local::now();
+                let timestamp = now.format("[%m/%d/%Y - %H:%M:%S]:");
+                app.output_lines.lock().unwrap().push_back(format!("{} ERROR: {}", timestamp, err));
+            }
+        }
+        // Clear the channel after use
+        UPDATE_RESULT_RX.with(|rx_cell| rx_cell.replace(None));
+        UPDATE_RESULT_TX.with(|tx_cell| tx_cell.replace(None));
+    }
     egui::TopBottomPanel::top("title").show(ctx, |ui| {
         let mut update_section_shown = false;
         ui.horizontal(|ui| {
@@ -45,21 +112,76 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                             }
                         });
                         ui.add_space(5.0);
-                        let button = ui.add_sized([
-                            190.0,
-                            20.0
-                        ], egui::Button::new("Update Now"));
-                        if button.clicked() {
-                            bot_manager::stop_bot(app);
-                            if let Ok(appdata) = std::env::var("APPDATA") {
-                                let exe_path = std::path::Path::new(&appdata)
-                                    .join("YapBot")
-                                    .join("YapBotUpdater.exe");
-                                let _ = std::process::Command::new(exe_path)
-                                    .spawn();
+                        // Replace the Update Now button and spinner section with a horizontal layout
+                        ui.horizontal(|ui| {
+                            let button = ui.add_sized([
+                                190.0,
+                                20.0
+                            ], egui::Button::new("Update Now"));
+                            if app.updating {
+                                draw_spinner(ui, egui::Color32::from_rgb(189, 147, 249)); // #bd93f9
                             }
-                            std::process::exit(0);
-                        }
+                            if button.clicked() && !app.updating {
+                                app.updating = true;
+                                // Create a channel for update completion
+                                let (tx, rx) = mpsc::channel();
+                                UPDATE_RESULT_TX.with(|tx_cell| tx_cell.replace(Some(tx)));
+                                UPDATE_RESULT_RX.with(|rx_cell| rx_cell.replace(Some(rx)));
+                                std::thread::spawn(move || {
+                                    let updater_url = "https://raw.githubusercontent.com/fosterbarnes/TwitchYapBotInstaller-Rust/main/resources/updater/YapBotUpdater.exe";
+                                    let mut download_error: Option<String> = None;
+                                    match reqwest::blocking::get(updater_url) {
+                                        Ok(resp) => {
+                                            if resp.status().is_success() {
+                                                let bytes = resp.bytes().map(|b| b.to_vec()).unwrap_or_else(|e| {
+                                                    download_error = Some(format!("Failed to read updater bytes: {}", e));
+                                                    Vec::new()
+                                                });
+                                                if download_error.is_none() {
+                                                    if let Ok(tmp) = std::env::temp_dir().join("YapBotUpdater.exe").into_os_string().into_string() {
+                                                        match std::fs::write(&tmp, &bytes) {
+                                                            Ok(_) => {
+                                                                if let Ok(appdata) = std::env::var("APPDATA") {
+                                                                    let dest = std::path::Path::new(&appdata).join("YapBot").join("YapBotUpdater.exe");
+                                                                    if let Err(e) = std::fs::copy(&tmp, &dest) {
+                                                                        download_error = Some(format!("Failed to copy updater to AppData: {}", e));
+                                                                    }
+                                                                } else {
+                                                                    download_error = Some("Could not get APPDATA path".to_string());
+                                                                }
+                                                            }
+                                                            Err(e) => {
+                                                                download_error = Some(format!("Failed to write temp updater: {}", e));
+                                                            }
+                                                        }
+                                                    } else {
+                                                        download_error = Some("Could not get temp file path".to_string());
+                                                    }
+                                                }
+                                            } else {
+                                                download_error = Some(format!("Failed to download updater: HTTP {}", resp.status()));
+                                            }
+                                        }
+                                        Err(e) => {
+                                            download_error = Some(format!("Failed to download updater: {}", e));
+                                        }
+                                    }
+                                    if let Some(err) = download_error {
+                                        UPDATE_RESULT_TX.with(|tx_cell| {
+                                            if let Some(tx) = &*tx_cell.borrow() {
+                                                let _ = tx.send(Err(err));
+                                            }
+                                        });
+                                    } else {
+                                        UPDATE_RESULT_TX.with(|tx_cell| {
+                                            if let Some(tx) = &*tx_cell.borrow() {
+                                                let _ = tx.send(Ok(()));
+                                            }
+                                        });
+                                    }
+                                });
+                            }
+                        });
                         ui.add_space(8.0);
                     }
                 }
