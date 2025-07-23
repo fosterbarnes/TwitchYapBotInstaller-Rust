@@ -8,6 +8,7 @@ use std::sync::mpsc::{Sender, Receiver, channel};
 use serde::{Serialize, Deserialize};
 use include_dir::{include_dir, Dir};
 use std::path::Path;
+use once_cell::sync::Lazy;
 pub const TWITCH_MARKOVCHAIN_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/TwitchMarkovChain");
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -19,6 +20,7 @@ pub struct YapBotInstallerSettings {
     pub cooldown: String,
     pub generate_command: String,
     pub step4_db_prompt_answered_yes: Option<bool>, // None = not answered, Some(true) = Yes, Some(false) = No
+    pub twitch_token_client_id: Option<String>,
 }
 
 impl YapBotInstallerSettings {
@@ -72,8 +74,12 @@ pub struct YapBotInstaller {
     pub main_channel_name: String,
     pub bot_channel_name: String,
     pub denied_users: String,
+    pub denied_users_list: Vec<String>,
+    pub temp_denied_user_input: String,
     pub cooldown: String,
     pub generate_command: String,
+    pub temp_generate_command_input: String,
+    pub generate_command_list: Vec<String>,
     // For Step 3 focus/blur logic
     pub prev_main_channel_name: String,
     pub prev_bot_channel_name: String,
@@ -103,6 +109,13 @@ pub struct YapBotInstaller {
     pub step5_visible: bool,
     pub step5_open: bool,
     pub step5_just_changed: bool,
+    // Version check state
+    pub latest_version: Option<String>,
+    pub version_check_error: Option<String>,
+    pub version_checked: bool,
+    pub twitch_token_username_warning: Option<String>,
+    pub twitch_token_checked_username: Option<String>,
+    pub twitch_token_client_id: Option<String>,
 }
 
 impl Default for YapBotInstaller {
@@ -143,8 +156,18 @@ impl Default for YapBotInstaller {
             main_channel_name: String::new(),
             bot_channel_name: String::new(),
             denied_users: "StreamElements, Nightbot, Moobot, Marbiebot, LumiaStream".to_string(),
+            denied_users_list: vec![
+                String::from("StreamElements"),
+                String::from("Nightbot"),
+                String::from("Moobot"),
+                String::from("Marbiebot"),
+                String::from("LumiaStream"),
+            ],
+            temp_denied_user_input: String::new(),
             cooldown: "0".to_string(),
-            generate_command: "!generate, !g, !yap".to_string(),
+            generate_command: "!yap".to_string(),
+            temp_generate_command_input: String::new(),
+            generate_command_list: vec!["!yap".to_string()],
             // For Step 3 focus/blur logic
             prev_main_channel_name: String::new(),
             prev_bot_channel_name: String::new(),
@@ -175,6 +198,13 @@ impl Default for YapBotInstaller {
             step5_visible: false,
             step5_open: false,
             step5_just_changed: false,
+            // Version check state
+            latest_version: None,
+            version_check_error: None,
+            version_checked: false,
+            twitch_token_username_warning: None,
+            twitch_token_checked_username: None,
+            twitch_token_client_id: None,
         };
         
         // If Python is already installed, automatically start dependencies installation
@@ -424,6 +454,24 @@ impl YapBotInstaller {
             self.denied_users = users.join(", ");
         }
     }
+
+    /// Sync denied_users_list from denied_users string
+    pub fn sync_denied_users_list(&mut self) {
+        self.denied_users_list = self.denied_users
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+    }
+    /// Sync denied_users string from denied_users_list
+    pub fn sync_denied_users_string(&mut self) {
+        self.denied_users = self.denied_users_list
+            .iter()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(", ");
+    }
 } 
 
 impl YapBotInstaller {
@@ -468,9 +516,36 @@ impl YapBotInstaller {
             cooldown,
             generate_command,
             step4_db_prompt_answered_yes,
+            twitch_token_client_id: self.twitch_token_client_id.clone(),
         })
     }
+
+    pub fn get_latest_version(&self) -> Option<&String> { self.latest_version.as_ref() }
+    pub fn get_version_check_error(&self) -> Option<&String> { self.version_check_error.as_ref() }
+    pub fn is_version_checked(&self) -> bool { self.version_checked }
+
+    /// Poll for version check results
+    pub fn poll_version_check(&mut self) {
+        if self.version_checked { return; }
+        let lock = VERSION_PTR.lock().unwrap();
+        if lock.2 {
+            self.latest_version = lock.0.clone();
+            self.version_check_error = lock.1.clone();
+            self.version_checked = true;
+        }
+    }
 }
+
+impl YapBotInstaller {
+    pub fn sync_generate_command_string(&mut self) {
+        self.generate_command = self.generate_command_list.join(", ");
+    }
+}
+
+// Version check state pointer for background thread
+pub static VERSION_PTR: Lazy<Arc<Mutex<(Option<String>, Option<String>, bool)>>> = Lazy::new(|| {
+    Arc::new(Mutex::new((None, None, false)))
+});
 
 // Utility: Recursively copy a directory
 pub fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
@@ -498,12 +573,24 @@ pub fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Re
 // Utility: Edit Settings.py with user info
 pub fn edit_settings_py(
     settings_path: &std::path::Path,
-    main_channel: &str,
-    bot_channel: &str,
-    denied_users: &str,
-    cooldown: &str,
-    generate_command: &str,
-    oauth: &str,
+    host: &str,
+    port: i32,
+    channel: &str,
+    nickname: &str,
+    authentication: &str,
+    denied_users: &[String],
+    allowed_users: &[String],
+    cooldown: i32,
+    key_length: i32,
+    max_sentence_word_amount: i32,
+    min_sentence_word_amount: i32,
+    help_message_timer: i32,
+    automatic_generation_timer: i32,
+    whisper_cooldown: bool,
+    enable_generate_command: bool,
+    sentence_separator: &str,
+    allow_generate_params: bool,
+    generate_commands: &[String],
 ) -> std::io::Result<()> {
     use std::io::{Read, Write};
     let mut contents = String::new();
@@ -511,38 +598,40 @@ pub fn edit_settings_py(
         let mut file = std::fs::File::open(settings_path)?;
         file.read_to_string(&mut contents)?;
     }
-    // Find the DEFAULTS section and replace the relevant lines
-    let mut lines: Vec<String> = contents.lines().map(|l| l.to_string()).collect();
-    let mut in_defaults = false;
-    for i in 0..lines.len() {
-        if lines[i].contains("DEFAULTS: SettingsData = {") {
-            in_defaults = true;
-        }
-        if in_defaults {
-            if lines[i].contains("\"Channel\":") {
-                lines[i] = format!("        \"Channel\": \"#{}\",", main_channel);
-            } else if lines[i].contains("\"Nickname\":") {
-                lines[i] = format!("        \"Nickname\": \"{}\",", bot_channel);
-            } else if lines[i].contains("\"Authentication\":") {
-                lines[i] = format!("        \"Authentication\": \"{}\",", oauth);
-            } else if lines[i].contains("\"DeniedUsers\":") {
-                let denied: Vec<String> = denied_users.split(',').map(|s| format!("\"{}\"", s.trim())).collect();
-                lines[i] = format!("        \"DeniedUsers\": [{}],", denied.join(", "));
-            } else if lines[i].contains("\"Cooldown\":") {
-                lines[i] = format!("        \"Cooldown\": {},", cooldown);
-            } else if lines[i].contains("\"GenerateCommands\":") {
-                let cmds: Vec<String> = generate_command.split(',').map(|s| format!("\"{}\"", s.trim())).collect();
-                lines[i] = format!("        \"GenerateCommands\": [{}]", cmds.join(", "));
+    // Find the DEFAULTS block and replace the entire dict
+    let lines: Vec<String> = contents.lines().map(|l| l.to_string()).collect();
+    let mut start = None;
+    let mut end = None;
+    let mut brace_count;
+    for (i, line) in lines.iter().enumerate() {
+        if line.contains("DEFAULTS: SettingsData = {") {
+            start = Some(i);
+            brace_count = line.chars().filter(|&c| c == '{').count();
+            for j in i+1..lines.len() {
+                brace_count += lines[j].chars().filter(|&c| c == '{').count();
+                brace_count -= lines[j].chars().filter(|&c| c == '}').count();
+                if brace_count == 0 {
+                    end = Some(j);
+                    break;
             }
-            if lines[i].contains("}") {
+            }
                 break;
             }
         }
-    }
-    let new_contents = lines.join("\n");
+    if let (Some(start), Some(end)) = (start, end) {
+        let dict_str = generate_python_settings_dict(
+            host, port, channel, nickname, authentication, denied_users, allowed_users, cooldown, key_length,
+            max_sentence_word_amount, min_sentence_word_amount, help_message_timer, automatic_generation_timer,
+            whisper_cooldown, enable_generate_command, sentence_separator, allow_generate_params, generate_commands
+        );
+        let mut new_lines = lines[..start+1].to_vec();
+        new_lines.push(dict_str);
+        new_lines.push(lines[end].clone());
+        new_lines.extend(lines[end+1..].iter().cloned());
     let mut file = std::fs::File::create(settings_path)?;
-    file.write_all(new_contents.as_bytes())?;
+        file.write_all(new_lines.join("\n").as_bytes())?;
     println!("[YapBotInstaller] Edited file: {}", settings_path.display());
+    }
     Ok(())
 } 
 
@@ -609,4 +698,113 @@ pub fn copy_embedded_twitch_markovchain_to(dst: &Path) -> std::io::Result<()> {
         Ok(())
     }
     copy_dir(&TWITCH_MARKOVCHAIN_DIR, dst)
+} 
+
+/// Generate the Python dict string for the DEFAULTS block in Settings.py
+pub fn generate_python_settings_dict(
+    host: &str,
+    port: i32,
+    channel: &str,
+    nickname: &str,
+    authentication: &str,
+    denied_users: &[String],
+    allowed_users: &[String],
+    cooldown: i32,
+    key_length: i32,
+    max_sentence_word_amount: i32,
+    min_sentence_word_amount: i32,
+    help_message_timer: i32,
+    automatic_generation_timer: i32,
+    whisper_cooldown: bool,
+    enable_generate_command: bool,
+    sentence_separator: &str,
+    allow_generate_params: bool,
+    generate_commands: &[String],
+) -> String {
+    // Helper for formatting Python lists
+    fn py_list(strings: &[String]) -> String {
+        if strings.is_empty() {
+            "[]".to_string()
+        } else {
+            let mut out = String::from("[\n");
+            for s in strings {
+                out.push_str(&format!("            \"{}\",\n", s));
+            }
+            out.push_str("        ]");
+            out
+        }
+    }
+    let denied_users_str = py_list(denied_users);
+    let allowed_users_str = py_list(allowed_users);
+    let generate_commands_str = py_list(generate_commands);
+    format!(
+        "        \"Host\": \"{}\",\n        \"Port\": {},\n        \"Channel\": \"{}\",\n        \"Nickname\": \"{}\",\n        \"Authentication\": \"{}\",\n        \"DeniedUsers\": {},\n        \"AllowedUsers\": {},\n        \"Cooldown\": {},\n        \"KeyLength\": {},\n        \"MaxSentenceWordAmount\": {},\n        \"MinSentenceWordAmount\": {},\n        \"HelpMessageTimer\": {},\n        \"AutomaticGenerationTimer\": {},\n        \"WhisperCooldown\": {},\n        \"EnableGenerateCommand\": {},\n        \"SentenceSeparator\": \"{}\",\n        \"AllowGenerateParams\": {},\n        \"GenerateCommands\": {}\n    ",
+        host,
+        port,
+        channel,
+        nickname,
+        authentication,
+        denied_users_str,
+        allowed_users_str,
+        cooldown,
+        key_length,
+        max_sentence_word_amount,
+        min_sentence_word_amount,
+        help_message_timer,
+        automatic_generation_timer,
+        if whisper_cooldown { "True" } else { "False" },
+        if enable_generate_command { "True" } else { "False" },
+        sentence_separator,
+        if allow_generate_params { "True" } else { "False" },
+        generate_commands_str
+    )
+}
+
+/// Generate pretty-printed JSON for settings.json with 2-space indentation and pretty arrays
+pub fn generate_settings_json(
+    allow_generate_params: bool,
+    allowed_users: &[String],
+    authentication: &str,
+    automatic_generation_timer: i32,
+    channel: &str,
+    cooldown: i32,
+    denied_users: &[String],
+    enable_generate_command: bool,
+    generate_commands: &[String],
+    help_message_timer: i32,
+    host: &str,
+    key_length: i32,
+    max_sentence_word_amount: i32,
+    min_sentence_word_amount: i32,
+    nickname: &str,
+    port: i32,
+    sentence_separator: &str,
+    whisper_cooldown: bool,
+) -> String {
+    use serde_json::json;
+    let value = json!({
+        "AllowGenerateParams": allow_generate_params,
+        "AllowedUsers": allowed_users,
+        "Authentication": authentication,
+        "AutomaticGenerationTimer": automatic_generation_timer,
+        "Channel": channel,
+        "Cooldown": cooldown,
+        "DeniedUsers": denied_users,
+        "EnableGenerateCommand": enable_generate_command,
+        "GenerateCommands": generate_commands,
+        "HelpMessageTimer": help_message_timer,
+        "Host": host,
+        "KeyLength": key_length,
+        "MaxSentenceWordAmount": max_sentence_word_amount,
+        "MinSentenceWordAmount": min_sentence_word_amount,
+        "Nickname": nickname,
+        "Port": port,
+        "SentenceSeparator": sentence_separator,
+        "WhisperCooldown": whisper_cooldown,
+    });
+    // Custom pretty-printer for 2-space indentation and pretty arrays
+    let mut s = serde_json::to_string_pretty(&value).unwrap();
+    // Replace 4-space with 2-space indentation
+    s = s.replace("    ", "  ");
+    s
 } 

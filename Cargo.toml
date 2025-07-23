@@ -1,15 +1,15 @@
 [package]
-name = "yapbot_installer"
+name = "yap_bot_installer"
 version = "5.0.0"
 edition = "2021"
 build = "build.rs"
 
 [dependencies]
-eframe = "0.28"
+eframe = "0.28.1"
 which = "6.0.3"
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs"] }
 async-process = "2.3.1"
-reqwest = { version = "0.12", features = ["blocking", "json"] }
+reqwest = { version = "0.11", features = ["json", "blocking"] }
 rfd = "0.11.4"
 indicatif = "0.17"
 image = "0.24"
@@ -26,6 +26,9 @@ webbrowser = "0.8"
 arboard = "3.2.0"
 include_dir = "0.7"
 regex = "1.11.1"
+rodio = "0.17"
+rand = "0.8"
+futures-util = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52.0"
@@ -39,5 +42,13 @@ embed-resource = "3.0"
 windows_subsystem = "windows"
 
 [[bin]]
-name = "yapbot_installer"
+name = "YapBotInstaller"
 path = "src/main.rs"
+
+[[bin]]
+name = "TwitchYapBot"
+path = "src/bin/TwitchYapBot/main.rs"
+
+[[bin]]
+name = "YapBotUpdater"
+path = "src/bin/YapBotUpdater/main.rs"

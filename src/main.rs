@@ -8,6 +8,7 @@ mod config;
 mod data_structures;
 mod gui;
 mod python_manager;
+pub mod bubbles;
 
 // Re-export commonly used items
 pub use config::*;
@@ -15,6 +16,7 @@ pub use data_structures::*;
 
 // Third-party crate imports
 use eframe::egui;
+use std::thread;
 
 // Platform-specific imports
 #[cfg(windows)]
@@ -172,6 +174,43 @@ fn configure_visuals(ctx: &egui::Context) {
 
 fn main() {
     println!("App started - main function entered");
+
+    // Start version check in background (like rustitles)
+    let version_ptr_clone = VERSION_PTR.clone();
+    thread::spawn(move || {
+        let url = "https://api.github.com/repos/fosterbarnes/TwitchYapBotInstaller-Rust/releases";
+        let client = reqwest::blocking::Client::new();
+        let resp = client.get(url)
+            .header("User-Agent", "yapbotinstaller-version-check")
+            .send();
+        let (mut latest, mut err, checked) = (None, None, true);
+        match resp {
+            Ok(r) => {
+                if let Ok(json) = r.json::<serde_json::Value>() {
+                    if let Some(releases) = json.as_array() {
+                        if let Some(first) = releases.first() {
+                            if let Some(tag) = first.get("tag_name").and_then(|v| v.as_str()) {
+                                latest = Some(tag.to_string());
+                            } else {
+                                err = Some("No tag_name in first release".to_string());
+                            }
+                        } else {
+                            err = Some("No releases found".to_string());
+                        }
+                    } else {
+                        err = Some("Failed to parse releases array".to_string());
+                    }
+                } else {
+                    err = Some("Failed to parse JSON".to_string());
+                }
+            }
+            Err(e) => {
+                err = Some(format!("HTTP error: {}", e));
+            }
+        }
+        let mut lock = version_ptr_clone.lock().unwrap();
+        *lock = (latest, err, checked);
+    });
     
     // Load application icon
     let icon_data = load_app_icon();
