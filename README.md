@@ -5,7 +5,8 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 
 ## How to install
 - Download and install the latest version of [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.0/Yap.Bot.Installer.v5.0.0.exe), run the installer, and follow the on screen instructions. Happy yappin'
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.0/Yap.Bot.Installer.v5.0.0.exe), run the installer, and follow the on screen instructions
+- After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 
 ## How it works
 - Train Yap Bot by just typing in chat. All chatter's messages will be added to the database
@@ -13,3 +14,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - In addition to being able to run the bot with "!yap", you can also give it a starting point for the sentance it generates. e.g. "!yap dingus"
 - These messages can only start with a word that has previously started a chat message, so don't expect every word to work unless it has been indexed
 - You can "train" the bot by feeding it chat messages with a starting word you'd like to add with the database. e.g. "dingus poop fart butt"
+
+## How it's made
+- The core script is built on [TwitchMarkovChain](https://github.com/fosterbarnes/TwitchMarkovChain) in python. Many, many details and "hidden" options are listed on this repo
+- The installer and client app is built using Rust
