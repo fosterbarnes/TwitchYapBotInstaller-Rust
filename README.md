@@ -5,7 +5,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 
 ## How to install
 - Download and install the latest version of [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.0/Yap.Bot.Installer.v5.0.0.exe), run the installer, and follow the on screen instructions
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.1/Yap.Bot.Installer.v5.0.1.exe), run the installer, and follow the on screen instructions
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 
 ## How it works
