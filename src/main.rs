@@ -8,6 +8,7 @@ mod config;
 mod data_structures;
 mod gui;
 mod python_manager;
+mod center_window;
 pub mod bubbles;
 
 // Re-export commonly used items
@@ -18,90 +19,20 @@ pub use data_structures::*;
 use eframe::egui;
 use std::thread;
 
-// Platform-specific imports
-#[cfg(windows)]
-use windows::Win32::Foundation::POINT;
-#[cfg(windows)]
-use windows::Win32::Graphics::Gdi::{MonitorFromPoint, GetMonitorInfoW, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-#[cfg(windows)]
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use yap_bot_installer::center_window::calculate_window_position;
 
 /// Load application icon from embedded resources
 fn load_app_icon() -> Option<egui::IconData> {
-    #[cfg(windows)]
-    {
-        if let Ok(image) = image::load_from_memory(include_bytes!("../resources/icon/yap_icon_green.ico")) {
-            let rgba = image.to_rgba8();
-            let size = [rgba.width() as u32, rgba.height() as u32];
-            Some(egui::IconData {
-                rgba: rgba.into_raw(),
-                width: size[0],
-                height: size[1],
-            })
-        } else {
-            None
-        }
-    }
-    
-    #[cfg(not(windows))]
-    {
-        // Try PNG first on Linux, then fallback to ICO
-        if let Ok(image) = image::load_from_memory(include_bytes!("../resources/icon/yap_icon_green.png")) {
-            let rgba = image.to_rgba8();
-            let size = [rgba.width() as u32, rgba.height() as u32];
-            Some(egui::IconData {
-                rgba: rgba.into_raw(),
-                width: size[0],
-                height: size[1],
-            })
-        } else if let Ok(image) = image::load_from_memory(include_bytes!("../resources/icon/yap_icon_green.ico")) {
-            let rgba = image.to_rgba8();
-            let size = [rgba.width() as u32, rgba.height() as u32];
-            Some(egui::IconData {
-                rgba: rgba.into_raw(),
-                width: size[0],
-                height: size[1],
-            })
-        } else {
-            None
-        }
-    }
-}
-
-/// Calculate window position to center on the currently used monitor
-fn calculate_window_position(window_size: [f32; 2]) -> egui::Pos2 {
-    #[cfg(windows)]
-    {
-        unsafe {
-            let mut point = POINT { x: 0, y: 0 };
-            if GetCursorPos(&mut point).is_ok() {
-                let monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
-                let mut info = MONITORINFO {
-                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                    ..Default::default()
-                };
-                if GetMonitorInfoW(monitor, &mut info).as_bool() {
-                    let work_left = info.rcWork.left;
-                    let work_top = info.rcWork.top;
-                    let work_width = (info.rcWork.right - info.rcWork.left) as f32;
-                    let work_height = (info.rcWork.bottom - info.rcWork.top) as f32;
-                    let x = work_left as f32 + (work_width - window_size[0]) / 2.0;
-                    let y = work_top as f32 + (work_height - window_size[1]) / 2.0;
-                    egui::Pos2::new(x, y)
-                } else {
-                    egui::Pos2::new(100.0, 100.0)
-                }
-            } else {
-                egui::Pos2::new(100.0, 100.0)
-            }
-        }
-    }
-    
-    #[cfg(not(windows))]
-    {
-        // On Linux, just center the window on screen
-        // We'll use a simple approach that works with most window managers
-        egui::Pos2::new(100.0, 100.0)
+    if let Ok(image) = image::load_from_memory(include_bytes!("../resources/icon/yap_icon_green.ico")) {
+        let rgba = image.to_rgba8();
+        let size = [rgba.width() as u32, rgba.height() as u32];
+        Some(egui::IconData {
+            rgba: rgba.into_raw(),
+            width: size[0],
+            height: size[1],
+        })
+    } else {
+        None
     }
 }
 

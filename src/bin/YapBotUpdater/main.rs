@@ -1,9 +1,15 @@
+//! YapBot Updater Main Entry Point
+//!
+//! This is the main entry point for the YapBot Updater executable.
+//! Responsible for launching the GUI and managing the update process.
+
 pub mod updater;
 mod gui;
 
 use eframe::egui;
 use egui::ViewportBuilder;
-use crate::gui::{load_app_icon, setup_fonts_and_theme, calculate_window_position};
+use crate::gui::{load_app_icon, setup_fonts_and_theme};
+use yap_bot_installer::center_window::calculate_window_position;
 
 const WINDOW_SIZE: [f32; 2] = [400.0, 82.0];
 const MIN_WINDOW_SIZE: [f32; 2] = [400.0, 82.0];

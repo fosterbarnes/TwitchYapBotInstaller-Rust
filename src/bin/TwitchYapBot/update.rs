@@ -1,5 +1,6 @@
-// Update check logic for TwitchYapBot
-// Handles GitHub release polling and update check
+//! Update check logic for TwitchYapBot
+//!
+//! This module handles GitHub release polling and update check logic for the TwitchYapBot executable.
 
 use std::sync::mpsc::Sender;
 use serde::Deserialize;

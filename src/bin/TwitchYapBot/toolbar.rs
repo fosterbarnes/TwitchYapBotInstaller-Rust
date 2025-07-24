@@ -1,5 +1,6 @@
-// Toolbar (top panel) logic for TwitchYapBot
-// Responsible for rendering the title, version, update check, and main toolbar buttons
+//! Toolbar (top panel) logic for TwitchYapBot
+//!
+//! This module is responsible for rendering the title, version, update check, and main toolbar buttons for the TwitchYapBot GUI.
 
 use eframe::egui;
 use crate::gui::{TwitchYapBotApp, is_sound_enabled};
@@ -10,6 +11,7 @@ use rand::Rng;
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::panic;
 use std::sync::{Mutex, OnceLock};
+use crate::log_and_print;
 
 static UPDATE_RESULT_TX: OnceLock<Mutex<Option<Sender<Result<(), String>>>>> = OnceLock::new();
 static UPDATE_RESULT_RX: OnceLock<Mutex<Option<Receiver<Result<(), String>>>>> = OnceLock::new();
@@ -97,103 +99,127 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                     let current_trim = current.trim_start_matches('v');
                     let tag_trim = tag.trim_start_matches('v');
                     if is_outdated(current_trim, tag_trim) {
-                        update_section_shown = true;
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new("Yap Bot's out of date")
-                                    .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
-                                    .color(egui::Color32::from_rgb(255, 85, 85)) // #ff5555
-                                    .size(13.0)
-                            );
-                            if let Some(tag) = app.github_release.tag_name.as_ref() {
-                                let url = app.github_release.html_url.as_deref().unwrap_or("https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases");
-                                let link_text = format!("({})", tag);
-                                let link_rich = egui::RichText::new(link_text)
-                                    .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
-                                    .color(egui::Color32::from_rgb(80, 160, 255))
-                                    .size(13.0);
-                                ui.hyperlink_to(link_rich, url);
-                            }
-                        });
-                        ui.add_space(5.0);
-                        // Replace the Update Now button and spinner section with a horizontal layout
-                        ui.horizontal(|ui| {
-                            let button = ui.add_sized([
-                                190.0,
-                                20.0
-                            ], egui::Button::new("Update Now"));
-                            if app.updating {
-                                draw_spinner(ui, egui::Color32::from_rgb(189, 147, 249)); // #bd93f9
-                            }
-                            if button.clicked() && !app.updating {
-                                app.updating = true;
-                                // Create a channel for update completion
-                                let (tx, rx) = mpsc::channel();
-                                let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
-                                *tx_mutex.lock().unwrap() = Some(tx);
-                                let rx_mutex = UPDATE_RESULT_RX.get_or_init(|| Mutex::new(None));
-                                *rx_mutex.lock().unwrap() = Some(rx);
-                                std::thread::spawn(move || {
-                                    let thread_result = panic::catch_unwind(|| {
-                                        let updater_url = "https://raw.githubusercontent.com/fosterbarnes/TwitchYapBotInstaller-Rust/main/resources/updater/YapBotUpdater.exe";
-                                        let mut download_error: Option<String> = None;
-                                        match reqwest::blocking::get(updater_url) {
-                                            Ok(resp) => {
-                                                if resp.status().is_success() {
-                                                    let bytes = resp.bytes().map(|b| b.to_vec()).unwrap_or_else(|e| {
-                                                        download_error = Some(format!("Failed to read updater bytes: {}", e));
-                                                        Vec::new()
-                                                    });
-                                                    if download_error.is_none() {
-                                                        if let Ok(tmp) = std::env::temp_dir().join("YapBotUpdater.exe").into_os_string().into_string() {
-                                                            match std::fs::write(&tmp, &bytes) {
-                                                                Ok(_) => {
-                                                                    if let Ok(appdata) = std::env::var("APPDATA") {
-                                                                        let dest = std::path::Path::new(&appdata).join("YapBot").join("YapBotUpdater.exe");
-                                                                        if let Err(e) = std::fs::copy(&tmp, &dest) {
-                                                                            download_error = Some(format!("Failed to copy updater to AppData: {}", e));
+                        // If current version is greater than tag, show 'Newest public release:'
+                        if current_trim > tag_trim {
+                            update_section_shown = true;
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new("Newest public release:")
+                                        .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
+                                        .color(egui::Color32::from_rgb(255, 184, 108)) // #ffb870
+                                        .size(13.0)
+                                );
+                                if let Some(tag) = app.github_release.tag_name.as_ref() {
+                                    let url = app.github_release.html_url.as_deref().unwrap_or("https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases");
+                                    let link_text = format!("({})", tag);
+                                    let link_rich = egui::RichText::new(link_text)
+                                        .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
+                                        .color(egui::Color32::from_rgb(80, 160, 255))
+                                        .size(13.0);
+                                    ui.hyperlink_to(link_rich, url);
+                                }
+                            });
+                            // Only add extra space below the buttons, not above
+                            ui.add_space(0.0 + 20.0 + 5.0);
+                        } else {
+                            update_section_shown = true;
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new("Yap Bot's out of date")
+                                        .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
+                                        .color(egui::Color32::from_rgb(255, 85, 85)) // #ff5555
+                                        .size(13.0)
+                                );
+                                if let Some(tag) = app.github_release.tag_name.as_ref() {
+                                    let url = app.github_release.html_url.as_deref().unwrap_or("https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases");
+                                    let link_text = format!("({})", tag);
+                                    let link_rich = egui::RichText::new(link_text)
+                                        .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
+                                        .color(egui::Color32::from_rgb(80, 160, 255))
+                                        .size(13.0);
+                                    ui.hyperlink_to(link_rich, url);
+                                }
+                            });
+                            ui.add_space(5.0);
+                            // Replace the Update Now button and spinner section with a horizontal layout
+                            ui.horizontal(|ui| {
+                                let button = ui.add_sized([
+                                    190.0,
+                                    20.0
+                                ], egui::Button::new("Update Now"));
+                                if app.updating {
+                                    draw_spinner(ui, egui::Color32::from_rgb(189, 147, 249)); // #bd93f9
+                                }
+                                if button.clicked() && !app.updating {
+                                    app.updating = true;
+                                    // Create a channel for update completion
+                                    let (tx, rx) = mpsc::channel();
+                                    let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+                                    *tx_mutex.lock().unwrap() = Some(tx);
+                                    let rx_mutex = UPDATE_RESULT_RX.get_or_init(|| Mutex::new(None));
+                                    *rx_mutex.lock().unwrap() = Some(rx);
+                                    std::thread::spawn(move || {
+                                        let thread_result = panic::catch_unwind(|| {
+                                            let updater_url = "https://raw.githubusercontent.com/fosterbarnes/TwitchYapBotInstaller-Rust/main/resources/updater/YapBotUpdater.exe";
+                                            let mut download_error: Option<String> = None;
+                                            match reqwest::blocking::get(updater_url) {
+                                                Ok(resp) => {
+                                                    if resp.status().is_success() {
+                                                        let bytes = resp.bytes().map(|b| b.to_vec()).unwrap_or_else(|e| {
+                                                            download_error = Some(format!("Failed to read updater bytes: {}", e));
+                                                            Vec::new()
+                                                        });
+                                                        if download_error.is_none() {
+                                                            if let Ok(tmp) = std::env::temp_dir().join("YapBotUpdater.exe").into_os_string().into_string() {
+                                                                match std::fs::write(&tmp, &bytes) {
+                                                                    Ok(_) => {
+                                                                        if let Ok(appdata) = std::env::var("APPDATA") {
+                                                                            let dest = std::path::Path::new(&appdata).join("YapBot").join("YapBotUpdater.exe");
+                                                                            if let Err(e) = std::fs::copy(&tmp, &dest) {
+                                                                                download_error = Some(format!("Failed to copy updater to AppData: {}", e));
+                                                                            }
+                                                                        } else {
+                                                                            download_error = Some("Could not get APPDATA path".to_string());
                                                                         }
-                                                                    } else {
-                                                                        download_error = Some("Could not get APPDATA path".to_string());
+                                                                    }
+                                                                    Err(e) => {
+                                                                        download_error = Some(format!("Failed to write temp updater: {}", e));
                                                                     }
                                                                 }
-                                                                Err(e) => {
-                                                                    download_error = Some(format!("Failed to write temp updater: {}", e));
-                                                                }
+                                                            } else {
+                                                                download_error = Some("Could not get temp file path".to_string());
                                                             }
-                                                        } else {
-                                                            download_error = Some("Could not get temp file path".to_string());
                                                         }
+                                                    } else {
+                                                        download_error = Some(format!("Failed to download updater: HTTP {}", resp.status()));
                                                     }
-                                                } else {
-                                                    download_error = Some(format!("Failed to download updater: HTTP {}", resp.status()));
+                                                }
+                                                Err(e) => {
+                                                    download_error = Some(format!("Failed to download updater: {}", e));
                                                 }
                                             }
-                                            Err(e) => {
-                                                download_error = Some(format!("Failed to download updater: {}", e));
+                                            let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
+                                            if let Some(err) = download_error {
+                                                if let Some(tx) = &*tx_mutex.lock().unwrap() {
+                                                    let _ = tx.send(Err(err));
+                                                }
+                                            } else {
+                                                if let Some(tx) = &*tx_mutex.lock().unwrap() {
+                                                    let _ = tx.send(Ok(()));
+                                                }
                                             }
-                                        }
-                                        let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
-                                        if let Some(err) = download_error {
+                                        });
+                                        if thread_result.is_err() {
+                                            let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
                                             if let Some(tx) = &*tx_mutex.lock().unwrap() {
-                                                let _ = tx.send(Err(err));
-                                            }
-                                        } else {
-                                            if let Some(tx) = &*tx_mutex.lock().unwrap() {
-                                                let _ = tx.send(Ok(()));
+                                                let _ = tx.send(Err("Update thread panicked".to_string()));
                                             }
                                         }
                                     });
-                                    if thread_result.is_err() {
-                                        let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
-                                        if let Some(tx) = &*tx_mutex.lock().unwrap() {
-                                            let _ = tx.send(Err("Update thread panicked".to_string()));
-                                        }
-                                    }
-                                });
-                            }
-                        });
-                        ui.add_space(8.0);
+                                }
+                            });
+                            ui.add_space(8.0);
+                        }
                     }
                 }
                 if !update_section_shown {
@@ -209,14 +235,18 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                 let icon_resp = ui.add_sized([icon_size, icon_size], buttons::settings_cog_button(ctx, icon_size)).on_hover_text("Settings");
                 if icon_resp.clicked() {
                     let exe = std::env::current_exe().unwrap();
-                    let _ = std::process::Command::new(exe)
-                        .arg("--settings-window")
-                        .spawn();
+                    let mut cmd = std::process::Command::new(exe);
+                    cmd.arg("--settings-window");
+                    if let Ok(log_path) = std::env::var("YAPBOT_LOG_PATH") {
+                        cmd.env("YAPBOT_LOG_PATH", log_path);
+                    }
+                    let _ = cmd.spawn();
                 }
                 ui.add_space(12.0);
                 // Revive button
                 let revive_resp = ui.add_sized([121.0, 45.0], buttons::revive_button(ctx)).on_hover_text("Restart Yap Bot");
                 if revive_resp.clicked() {
+                    log_and_print!("[GUI] Revive button pressed");
                     if is_sound_enabled() {
                         buttons::play_random_sound(&buttons::ANGELIC_SOUNDS);
                     }
@@ -226,6 +256,7 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                 // Murder button
                 let murder_resp = ui.add_sized([121.0, 45.0], buttons::murder_button(ctx)).on_hover_text("Stop Yap Bot");
                 if murder_resp.clicked() {
+                    log_and_print!("[GUI] Murder button pressed");
                     if is_sound_enabled() {
                         buttons::play_random_sound(&buttons::DEATH_SCREAMS);
                     }
@@ -235,6 +266,7 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                 // Yap button
                 let yap_resp = ui.add_sized([121.0, 45.0], buttons::yap_button(ctx)).on_hover_text("Manually trigger a response");
                 if yap_resp.clicked() {
+                    log_and_print!("[GUI] Yap button pressed");
                     let output_lines = app.output_lines.clone();
                     std::thread::spawn(move || {
                         let mut connected = false;

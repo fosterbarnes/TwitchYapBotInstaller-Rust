@@ -1,5 +1,6 @@
-// IPC server logic for TwitchYapBot
-// Handles listening to restart requests from the settings window
+//! IPC server logic for TwitchYapBot
+//!
+//! This module handles listening to restart requests from the settings window for the TwitchYapBot executable.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

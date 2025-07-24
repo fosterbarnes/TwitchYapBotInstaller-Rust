@@ -1,7 +1,7 @@
-use eframe::egui::{self, Color32, FontId};
-
 /// Render a list of bubbles with removable 'x' buttons, supporting multi-line wrapping.
 /// Optionally, a special (non-removable) bubble can be rendered at the start of the first line.
+
+use eframe::egui::{self, Color32, FontId};
 pub fn bubble_list_ui(
     ui: &mut egui::Ui,
     items: &mut Vec<String>,

@@ -1,3 +1,8 @@
+//! YapBot Updater Logic
+//!
+//! Contains the asynchronous update logic for downloading and replacing files needed by YapBot.
+//! Handles progress reporting and error management for the update process.
+
 use std::path::PathBuf;
 use tokio::io::AsyncWriteExt;
 

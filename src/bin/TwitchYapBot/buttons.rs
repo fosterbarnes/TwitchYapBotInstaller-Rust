@@ -1,27 +1,15 @@
-// Audio playback utilities and sound arrays for Yap Bot.
+//! Audio playback utilities and button image logic for TwitchYapBot
+//!
+//! This module provides sound arrays, audio playback, and button image loading for the TwitchYapBot GUI.
+
 use rand::Rng;
 use std::io::Cursor;
 use eframe::egui;
+use image::imageops::FilterType;
 
-/// Macro to generate a static array of embedded sound files.
-#[macro_export]
-macro_rules! sound_array {
-    ($name:ident, $prefix:expr) => {
-        pub static $name: [&'static [u8]; 8] = [
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "1.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "2.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "3.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "4.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "5.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "6.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "7.mp3")),
-            include_bytes!(concat!("../../../resources/sound/", $prefix, "8.mp3")),
-        ];
-    };
-}
-
-sound_array!(DEATH_SCREAMS, "DeathScream");
-sound_array!(ANGELIC_SOUNDS, "Angelic");
+// Include generated sound arrays for DeathScream and Angelic
+include!(concat!(env!("OUT_DIR"), "/death_screams_generated.rs"));
+include!(concat!(env!("OUT_DIR"), "/angelic_sounds_generated.rs"));
 
 /// Play a random sound from the provided slice in a background thread.
 pub fn play_random_sound(sounds: &[&[u8]]) {
@@ -55,7 +43,34 @@ pub fn load_button_texture(ctx: &egui::Context, name: &str, image_bytes: &'stati
 /// Draws the settings cog button and returns true if clicked.
 pub fn settings_cog_button(ctx: &egui::Context, size: f32) -> egui::ImageButton {
     let cog_image = include_bytes!("../../../resources/buttons/SettingsCog.png");
-    let cog_texture = load_button_texture(ctx, "settings_cog", cog_image);
+    let cache_id = format!("settings_cog_{}", size);
+    let id = egui::Id::new(cache_id);
+    let texture = ctx.data(|data| {
+        data.get_temp::<egui::TextureHandle>(id)
+    });
+    let cog_texture = if let Some(tex) = texture {
+        tex
+    } else {
+        // Decode and resize the image only once per size
+        let image = image::load_from_memory(cog_image).unwrap().to_rgba8();
+        let (orig_w, orig_h) = image.dimensions();
+        let target_size = size.round() as u32;
+        let resized = if orig_w != target_size || orig_h != target_size {
+            image::imageops::resize(&image, target_size, target_size, FilterType::Lanczos3)
+        } else {
+            image
+        };
+        let size_arr = [resized.width() as usize, resized.height() as usize];
+        let tex = ctx.load_texture(
+            &format!("settings_cog_{}", size),
+            egui::ColorImage::from_rgba_unmultiplied(size_arr, &resized.into_raw()),
+            egui::TextureOptions::LINEAR,
+        );
+        ctx.data_mut(|data| {
+            data.insert_temp(id, tex.clone());
+        });
+        tex
+    };
     egui::ImageButton::new((cog_texture.id(), egui::vec2(size, size)))
 }
 

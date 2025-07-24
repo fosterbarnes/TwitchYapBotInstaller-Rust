@@ -1,4 +1,6 @@
-//! Twitch Yap Bot Runner
+//! Twitch Yap Bot Runner (main entry point)
+//!
+//! This is the main entry point for the TwitchYapBot executable, responsible for launching the GUI and managing the application lifecycle.
 //! GUI wrapper for running MarkovChainBot.py with live output
 
 mod gui;
@@ -9,47 +11,33 @@ mod toolbar;
 mod output;
 mod settings;
 mod buttons;
-
+mod config;
+mod log_util;
 use eframe::egui;
 use egui::ViewportBuilder;
 use std::env;
-use crate::gui::{get_version, calculate_window_position, load_app_icon, setup_fonts_and_theme};
-
-// Window size and min size constants
-const WINDOW_SIZE: [f32; 2] = [800.0, 517.0];
-const MIN_WINDOW_SIZE: [f32; 2] = [730.0, 200.0];
+use std::fs;
+use crate::gui::{get_version, load_app_icon, setup_fonts_and_theme};
+use crate::config::{WINDOW_SIZE, MIN_WINDOW_SIZE, app_version};
+use yap_bot_installer::center_window::calculate_window_position;
 
 fn main() {
+    // Only generate a new log file path if YAPBOT_LOG_PATH is not already set
+    if std::env::var("YAPBOT_LOG_PATH").is_err() {
+        let log_dir = crate::config::get_log_dir();
+        if !log_dir.exists() {
+            let _ = fs::create_dir_all(&log_dir);
+        }
+        let now = chrono::Local::now();
+        let log_filename = now.format("%m-%d-%y_%H-%M-%S.log").to_string();
+        let log_path = log_dir.join(log_filename);
+        std::env::set_var("YAPBOT_LOG_PATH", &log_path);
+    }
+
     let args: Vec<String> = env::args().collect();
     if args.iter().any(|a| a == "--settings-window") {
         // Only run the settings window
-        let mut dialog = settings::SettingsDialog::new();
-        let _ = dialog.load_settings();
-        let center_pos = calculate_window_position([666.0, 600.0]);
-        let viewport_builder = ViewportBuilder::default()
-            .with_inner_size([666.0, 600.0])
-            .with_min_inner_size([400.0, 200.0])
-            .with_position(center_pos);
-        let native_options = eframe::NativeOptions {
-            viewport: viewport_builder,
-            ..Default::default()
-        };
-        eframe::run_native(
-            "Yap Bot Settings",
-            native_options,
-            Box::new(|cc| {
-                setup_fonts_and_theme(&cc.egui_ctx);
-                struct SettingsWindowApp {
-                    dialog: settings::SettingsDialog,
-                }
-                impl eframe::App for SettingsWindowApp {
-                    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-                        self.dialog.show(ctx);
-                    }
-                }
-                Ok(Box::new(SettingsWindowApp { dialog }))
-            }),
-        ).unwrap();
+        crate::settings::run_settings_window();
         return;
     }
     let center_pos = calculate_window_position(WINDOW_SIZE);
@@ -65,9 +53,8 @@ fn main() {
         viewport: viewport_builder,
         ..Default::default()
     };
-    let version = get_version();
     eframe::run_native(
-        &format!("Twitch Yap Bot v{}", version),
+        &format!("Twitch Yap Bot v{}", app_version()),
         native_options,
         Box::new(move |cc| {
             setup_fonts_and_theme(&cc.egui_ctx);

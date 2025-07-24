@@ -1,7 +1,11 @@
-// Main GUI logic split from main.rs
+//! Main GUI logic for TwitchYapBot
+//!
+//! This module contains the main GUI logic, state management, and event handling for the TwitchYapBot executable.
+
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Receiver};
 use crate::settings::SettingsDialog;
+use crate::log_and_print;
 use eframe::{App, egui};
 use std::sync::atomic::AtomicBool;
 use std::collections::VecDeque;
@@ -11,6 +15,7 @@ use crate::bot_manager::{stop_bot, restart_bot, run_markov_chain_bot};
 use crate::ipc::start_ipc_server;
 use crate::toolbar::render_toolbar;
 use crate::output::render_output_log;
+pub use yap_bot_installer::center_window::calculate_window_position;
 
 /// Returns true if sound is enabled in the settings file.
 pub fn is_sound_enabled() -> bool {
@@ -31,57 +36,18 @@ pub fn get_version() -> &'static str {
     include_str!("../../version.txt").trim()
 }
 
-/// Calculates the centered window position for the given size.
-pub fn calculate_window_position(window_size: [f32; 2]) -> egui::Pos2 {
-    #[cfg(windows)]
-    {
-        use windows::Win32::Foundation::POINT;
-        use windows::Win32::Graphics::Gdi::{MonitorFromPoint, GetMonitorInfoW, MONITORINFO, MONITOR_DEFAULTTONEAREST};
-        unsafe {
-            let mut point = POINT { x: 0, y: 0 };
-            if windows::Win32::UI::WindowsAndMessaging::GetCursorPos(&mut point).is_ok() {
-                let monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
-                let mut info = MONITORINFO {
-                    cbSize: std::mem::size_of::<MONITORINFO>() as u32,
-                    ..Default::default()
-                };
-                if GetMonitorInfoW(monitor, &mut info).as_bool() {
-                    let work_left = info.rcWork.left;
-                    let work_top = info.rcWork.top;
-                    let work_width = (info.rcWork.right - info.rcWork.left) as f32;
-                    let work_height = (info.rcWork.bottom - info.rcWork.top) as f32;
-                    let x = work_left as f32 + (work_width - window_size[0]) / 2.0;
-                    let y = work_top as f32 + (work_height - window_size[1]) / 2.0;
-                    return egui::Pos2::new(x, y);
-                } else {
-                    return egui::Pos2::new(100.0, 100.0);
-                }
-            } else {
-                return egui::Pos2::new(100.0, 100.0);
-            }
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        egui::Pos2::new(100.0, 100.0)
-    }
-}
-
 /// Loads the app icon for the window.
 pub fn load_app_icon() -> Option<egui::IconData> {
-    #[cfg(windows)]
-    {
-        if let Ok(image) = image::load_from_memory(include_bytes!("../../../resources/icon/yap_icon_purple.ico")) {
-            let rgba = image.to_rgba8();
-            let size = [rgba.width() as u32, rgba.height() as u32];
-            Some(egui::IconData {
-                rgba: rgba.into_raw(),
-                width: size[0],
-                height: size[1],
-            })
-        } else {
-            None
-        }
+    if let Ok(image) = image::load_from_memory(include_bytes!("../../../resources/icon/yap_icon_purple.ico")) {
+        let rgba = image.to_rgba8();
+        let size = [rgba.width() as u32, rgba.height() as u32];
+        Some(egui::IconData {
+            rgba: rgba.into_raw(),
+            width: size[0],
+            height: size[1],
+        })
+    } else {
+        None
     }
 }
 
@@ -140,10 +106,20 @@ pub struct TwitchYapBotApp {
     pub installing_dependencies: bool,
     pub step4_action_running: bool,
     pub updating: bool,
+    pub show_output_log: bool, // controls custom collapsible output section
+    pub previous_window_height: Option<f32>, // for restoring window height
+    pub is_window_minimized: bool, // track minimized state
+    // Animation state for output log arrow
+    pub output_log_arrow_anim: f32, // 0.0 = right, 1.0 = down
+    pub output_log_arrow_target: bool, // true = down, false = right
+    pub output_log_arrow_animating: bool, // Animation state for output log fade
+    pub output_log_fade_anim: f32, // 0.0 = fully hidden, 1.0 = fully shown
+    pub output_log_fade_target: bool, // true = shown, false = hidden
+    pub output_log_fade_animating: bool, // Animation state for output log fade
 }
 
-impl Default for TwitchYapBotApp {
-    fn default() -> Self {
+impl TwitchYapBotApp {
+    pub fn new() -> Self {
         let output_lines = Arc::new(Mutex::new(VecDeque::with_capacity(200)));
         let (tx, rx) = mpsc::channel();
         let output_lines_clone = output_lines.clone();
@@ -173,12 +149,27 @@ impl Default for TwitchYapBotApp {
             installing_dependencies: false,
             step4_action_running: false,
             updating: false,
+            show_output_log: true,
+            previous_window_height: None,
+            is_window_minimized: false,
+            output_log_arrow_anim: 1.0, // start as down (expanded)
+            output_log_arrow_target: true,
+            output_log_arrow_animating: false,
+            output_log_fade_anim: 1.0, // start as fully shown
+            output_log_fade_target: true,
+            output_log_fade_animating: false,
         }
     }
 }
 
+impl Default for TwitchYapBotApp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl App for TwitchYapBotApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         // Poll for GitHub release info
         if let Some(rx) = &self.github_rx {
             if let Ok(release) = rx.try_recv() {
@@ -205,8 +196,9 @@ impl App for TwitchYapBotApp {
         visuals.widgets.active.fg_stroke.color = egui::Color32::from_rgb(248, 248, 242);    // #f8f8f2
         visuals.widgets.hovered.fg_stroke.color = egui::Color32::from_rgb(40, 42, 54);      // #282a36
         ctx.set_visuals(visuals);
-        render_toolbar(self, ctx, _frame);
-        render_output_log(self, ctx);
+        // Set global icon width to 24.0 for all egui icons (arrows, dropdowns, etc.)
+        render_toolbar(self, ctx, frame);
+        render_output_log(self, ctx, frame);
         // Poll for new output
         if let Some(rx) = &self.rx {
             let websocket_marker = "[TwitchWebsocket.TwitchWebsocket] [INFO    ] - Attempting to initialize websocket connection.";
@@ -242,6 +234,8 @@ impl App for TwitchYapBotApp {
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         stop_bot(self);
+        log_and_print!("[GUI] Main window closed (x button in windows)");
+        crate::log_util::shutdown_logger();
     }
 }
 
