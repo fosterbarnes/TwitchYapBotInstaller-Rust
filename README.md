@@ -5,8 +5,9 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 
 ## How to install
 - Download and install the latest version of [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.0/Yap.Bot.Installer.v5.0.0.exe), run the installer, and follow the on screen instructions
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.1/Yap.Bot.Installer.v5.0.1.exe), run the installer, and follow the on screen instructions
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
+- The install will live at `YourUserName\AppData\Roaming\YapBot`. User specified install locations are planned for the future
 
 ## How it works
 - Train Yap Bot by just typing in chat. All chatter's messages will be added to the database
@@ -17,4 +18,24 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 
 ## How it's made
 - The core script is built on [TwitchMarkovChain](https://github.com/fosterbarnes/TwitchMarkovChain) in python. Many, many details and "hidden" options are listed on this repo
-- The installer and client app is built using Rust
+- The installer, client app and updater are built using Rust
+
+## Components
+- `Yap Bot Installer v5.0.1.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
+- `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
+- `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
+
+## Screenshots
+Yap Bot Installer:
+
+<img width="800" height="610" alt="Yap Bot Installer v5 0 1" src="https://github.com/user-attachments/assets/835e3973-5907-44b6-9071-61347f4ea31d" />
+
+
+TwitchYapBot:
+
+<img width="800" height="547" alt="TwitchYapBotv5 0 1" src="https://github.com/user-attachments/assets/3b9df747-2817-4a9c-9cd8-4f44c6b54cd3" />
+
+
+YapBotUpdater:
+
+<img width="400" height="112" alt="YapBotUpdaterv5 0 1" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
