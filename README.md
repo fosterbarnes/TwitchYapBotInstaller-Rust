@@ -21,7 +21,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - The installer, client app and updater are built using Rust
 
 ## Components
-- `Yap Bot Installer v5.0.1.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
+- `Yap Bot Installer v5.0.2.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
 - `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
 
