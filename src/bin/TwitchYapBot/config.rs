@@ -26,7 +26,7 @@ pub fn get_log_dir() -> PathBuf {
 }
 
 /// Settings window default size
-pub static SETTINGS_WINDOW_SIZE: [f32; 2] = [666.0, 600.0];
+pub static SETTINGS_WINDOW_SIZE: [f32; 2] = [666.0, 630.0];
 
 /// Minimum window size for settings window
 pub static SETTINGS_MIN_WINDOW_SIZE: [f32; 2] = [400.0, 200.0];

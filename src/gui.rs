@@ -815,6 +815,17 @@ impl YapBotInstaller {
                 // - settings were recovered on start (step4_skipped_to_from_settings), OR
                 // - the DB prompt has been answered (step4_db_prompt_answered)
                 if idx == 4 {
+                    // Copy YapBotInstallerSettings.json to AppData\Roaming\YapBot\TwitchMarkovChain
+                    if let Ok(appdata) = std::env::var("APPDATA") {
+                        let src = std::path::Path::new("YapBotInstallerSettings.json");
+                        let dst = std::path::Path::new(&appdata).join("YapBot").join("TwitchMarkovChain").join("YapBotInstallerSettings.json");
+                        if src.exists() {
+                            if let Some(parent) = dst.parent() {
+                                let _ = std::fs::create_dir_all(parent);
+                            }
+                            let _ = std::fs::copy(src, dst);
+                        }
+                    }
                     if self.step4_skipped_to_from_settings || self.step4_db_prompt_answered {
                         self.step4_open = false;
                         self.step4_just_changed = true;
@@ -938,6 +949,17 @@ impl YapBotInstaller {
             None
         };
         if self.step5_visible {
+            // Ensure YapBotInstallerSettings.json is copied to AppData\Roaming\YapBot\TwitchMarkovChain
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                let src = std::path::Path::new("YapBotInstallerSettings.json");
+                let dst = std::path::Path::new(&appdata).join("YapBot").join("TwitchMarkovChain").join("YapBotInstallerSettings.json");
+                if src.exists() {
+                    if let Some(parent) = dst.parent() {
+                        let _ = std::fs::create_dir_all(parent);
+                    }
+                    let _ = std::fs::copy(src, dst);
+                }
+            }
             let response5 = egui::CollapsingHeader::new(
                 egui::RichText::new("Step 5: Install Complete")
                     .font(egui::FontId::new(16.0, egui::FontFamily::Name("consolas_titles".into())))
