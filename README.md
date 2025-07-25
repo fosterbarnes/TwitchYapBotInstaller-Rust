@@ -5,7 +5,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 
 ## How to install
 - Download and install the latest version of [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.2/Yap.Bot.Installer.v5.0.2.exe), run the installer, and follow the on screen instructions
+[Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.2/Yap.Bot.Installer.v5.0.2.exe)
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 - The install will live at `YourUserName\AppData\Roaming\YapBot`. User specified install locations are planned for the future
 
@@ -24,6 +24,15 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - `Yap Bot Installer v5.0.2.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
 - `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
+
+## Support
+If you have any issues, create an issue from the [Issues](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/issues) tab and I will get back to you as quickly as possible.
+
+If you'd like to support me, follow me on twitch:
+https://www.twitch.tv/fosterbarnes
+
+or if you're feeling generous drop a donation:
+https://coff.ee/fosterbarnes
 
 ## Screenshots
 Yap Bot Installer:
