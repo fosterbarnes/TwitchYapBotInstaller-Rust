@@ -12,7 +12,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 ## How it works
 - Train Yap Bot by just typing in chat. All chatter's messages will be added to the database
 - When Yap Bot is run, it'll use previous chat messages to formulate a new, randomized message
-- In addition to being able to run the bot with "!yap", you can also give it a starting point for the sentance it generates. e.g. "!yap dingus"
+- In addition to being able to run the bot with "!yap", you can also give it a starting point for the sentence it generates. e.g. "!yap dingus"
 - These messages can only start with a word that has previously started a chat message, so don't expect every word to work unless it has been indexed
 - You can "train" the bot by feeding it chat messages with a starting word you'd like to add with the database. e.g. "dingus poop fart butt"
 
