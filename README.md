@@ -24,7 +24,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - `Yap Bot Installer v5.0.3.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
 - `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
-- `traymond-tcp.exe` is responsible for minimizing the app to the system tray https://github.com/fosterbarnes/traymond-ipc
+- `traymond-tcp.exe` is responsible for minimizing the app to the system tray https://github.com/fosterbarnes/traymond-tcp
 
 ## Screenshots
 Yap Bot Installer:
