@@ -78,20 +78,16 @@ pub fn render_output_log(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame:
                     [800.0, 517.0]
                 };
                 app.previous_window_height = Some(current_size[1]);
-                app.is_window_minimized = true;
                 log_and_print!("[GUI] Output log collapsed (show_output_log: false)");
             } else {
                 // Expanding: restore previous height if available
-                if app.is_window_minimized {
-                    let screen_rect = ctx.input(|i| i.screen_rect);
-                    let current_size = if screen_rect.is_positive() {
-                        [screen_rect.width(), screen_rect.height()]
-                    } else {
-                        [800.0, 517.0]
-                    };
-                    let _restore_height = app.previous_window_height.unwrap_or(current_size[1].max(crate::config::MIN_WINDOW_SIZE[1]));
-                    app.is_window_minimized = false;
-                }
+                let screen_rect = ctx.input(|i| i.screen_rect);
+                let current_size = if screen_rect.is_positive() {
+                    [screen_rect.width(), screen_rect.height()]
+                } else {
+                    [800.0, 517.0]
+                };
+                let _restore_height = app.previous_window_height.unwrap_or(current_size[1].max(crate::config::MIN_WINDOW_SIZE[1]));
                 log_and_print!("[GUI] Output log un-collapsed (show_output_log: true)");
             }
         }

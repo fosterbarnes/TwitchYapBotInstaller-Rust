@@ -73,6 +73,11 @@ pub async fn perform_update(
             "TwitchYapBot.exe",
         ),
         (
+            "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/resources/binaries/traymond-tcp.exe",
+            yapbot_dir.join("traymond-tcp.exe"),
+            "traymond-tcp.exe",
+        ),
+        (
             "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/TwitchMarkovChain/Database.py",
             markov_dir.join("Database.py"),
             "Database.py",

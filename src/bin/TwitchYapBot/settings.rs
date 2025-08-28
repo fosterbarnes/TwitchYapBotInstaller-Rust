@@ -15,25 +15,73 @@ use crate::log_and_print;
 use crate::config::{INSTALLER_SETTINGS_FILENAME, SETTINGS_PY_FILENAME, SETTINGS_JSON_FILENAME, SETTINGS_WINDOW_SIZE, SETTINGS_MIN_WINDOW_SIZE};
 use open;
 
+fn default_generate_commands() -> Vec<String> {
+    vec!["!generate".to_string(), "!g".to_string()]
+}
+
+fn default_denied_users() -> Vec<String> {
+    vec!["StreamElements".to_string(), "Nightbot".to_string(), "Moobot".to_string(), "Marbiebot".to_string()]
+}
+
+fn default_allowed_users() -> Vec<String> {
+    vec![]
+}
+
+fn default_start_minimized_to_tray() -> bool {
+    false
+}
+
+fn default_exit_when_monitored_app_closes() -> bool {
+    false
+}
+
+fn default_randomized_generation_timer_enabled() -> bool {
+    false
+}
+
+fn default_randomized_generation_timer_min() -> i32 {
+    30
+}
+
+fn default_randomized_generation_timer_max() -> i32 {
+    100
+}
+
+fn default_first_launch() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct BotSettings {
     pub channel: String,
     pub nickname: String,
     pub authentication: String,
+    #[serde(default = "default_denied_users")]
     pub denied_users: Vec<String>,
+    #[serde(default = "default_allowed_users")]
     pub allowed_users: Vec<String>,
     pub cooldown: i32,
     pub key_length: i32,
     pub max_sentence_word_amount: i32,
     pub min_sentence_word_amount: i32,
     pub automatic_generation_timer: i32,
+    #[serde(default = "default_generate_commands")]
     pub generate_commands: Vec<String>,
     pub sound_enabled: bool,
+    #[serde(default = "default_start_minimized_to_tray")]
+    pub start_minimized_to_tray: bool,
+    #[serde(default = "default_exit_when_monitored_app_closes")]
+    pub exit_when_monitored_app_closes: bool,
     // New fields for randomized timer
+    #[serde(default = "default_randomized_generation_timer_enabled")]
     pub randomized_generation_timer_enabled: bool,
+    #[serde(default = "default_randomized_generation_timer_min")]
     pub randomized_generation_timer_min: i32,
+    #[serde(default = "default_randomized_generation_timer_max")]
     pub randomized_generation_timer_max: i32,
+    #[serde(default = "default_first_launch")]
+    pub first_launch: bool,
 }
 
 impl Default for BotSettings {
@@ -51,9 +99,12 @@ impl Default for BotSettings {
             automatic_generation_timer: -1,
             generate_commands: vec!["!generate".to_string(), "!g".to_string()],
             sound_enabled: true,
+            start_minimized_to_tray: false,
+            exit_when_monitored_app_closes: false,
             randomized_generation_timer_enabled: false,
             randomized_generation_timer_min: 30,
             randomized_generation_timer_max: 100,
+            first_launch: true,
         }
     }
 }
@@ -97,6 +148,24 @@ impl SettingsDialog {
         let appdata_settings_path = PathBuf::from(format!("{}\\YapBot\\TwitchMarkovChain\\{}", appdata, INSTALLER_SETTINGS_FILENAME));
         let mut default = BotSettings::default();
         let mut channel_input = String::new();
+        
+        // Check for first_launch field in the installer settings file
+        let mut should_show_first_launch = true; // Default to true if file doesn't exist
+        if appdata_settings_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&appdata_settings_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(first_launch_value) = json.get("first_launch") {
+                        if let Some(first_launch_bool) = first_launch_value.as_bool() {
+                            should_show_first_launch = first_launch_bool;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Set the first_launch value based on what we found
+        default.first_launch = should_show_first_launch;
+        
         if appdata_settings_path.exists() {
             if let Ok(content) = std::fs::read_to_string(&appdata_settings_path) {
                 if let Ok(settings) = serde_json::from_str::<BotSettings>(&content) {
@@ -107,6 +176,8 @@ impl SettingsDialog {
                         channel_input = loaded_channel.to_string();
                     }
                     default = settings;
+                    // Ensure first_launch is set correctly
+                    default.first_launch = should_show_first_launch;
                 }
             }
         } else {
@@ -155,6 +226,30 @@ impl SettingsDialog {
         let appdata_settings_path = PathBuf::from(format!("{}\\YapBot\\TwitchMarkovChain\\{}", appdata, INSTALLER_SETTINGS_FILENAME));
         log_and_print!("[DEBUG] Loading GUI settings from: {}", appdata_settings_path.display());
         log_and_print!("[DEBUG] File exists: {}", appdata_settings_path.exists());
+        
+        // Check for first_launch field in the installer settings file
+        let mut should_show_first_launch = true; // Default to true if file doesn't exist
+        if appdata_settings_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&appdata_settings_path) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(first_launch_value) = json.get("first_launch") {
+                        if let Some(first_launch_bool) = first_launch_value.as_bool() {
+                            should_show_first_launch = first_launch_bool;
+                            log_and_print!("[DEBUG] Found first_launch field in installer settings: {}", first_launch_bool);
+                        }
+                    } else {
+                        log_and_print!("[DEBUG] No first_launch field found in installer settings, will show first launch popup");
+                    }
+                }
+            }
+        } else {
+            log_and_print!("[DEBUG] Installer settings file does not exist, will show first launch popup");
+        }
+        
+        // Set the first_launch value based on what we found
+        self.settings.first_launch = should_show_first_launch;
+        self.temp_settings.first_launch = should_show_first_launch;
+        
         if appdata_settings_path.exists() {
             match fs::read_to_string(&appdata_settings_path) {
                 Ok(content) => {
@@ -188,6 +283,8 @@ impl SettingsDialog {
                             match serde_json::from_str::<OldInstallerSettings>(&content) {
                                 Ok(old) => {
                                     log_and_print!("[DEBUG] Migrating old installer settings to BotSettings format");
+                                    log_and_print!("[DEBUG] Old settings - oauth: {:?}, main_channel: {:?}, bot_channel: {:?}, denied_users: {:?}, cooldown: {:?}, generate_command: {:?}", 
+                                        old.oauth, old.main_channel_name, old.bot_channel_name, old.denied_users, old.cooldown, old.generate_command);
                                     let denied_users = old.denied_users
                                         .as_deref()
                                         .unwrap_or("")
@@ -208,16 +305,19 @@ impl SettingsDialog {
                                         authentication: old.oauth.unwrap_or_else(|| "oauth:<auth>".to_string()),
                                         denied_users,
                                         allowed_users: vec![],
-                                        cooldown: old.cooldown.and_then(|c| c.parse().ok()).unwrap_or(20),
+                                        cooldown: old.cooldown.and_then(|c| c.parse().ok()).unwrap_or(0),
                                         key_length: 2,
                                         max_sentence_word_amount: 40,
                                         min_sentence_word_amount: -1,
                                         automatic_generation_timer: -1,
                                         generate_commands,
                                         sound_enabled: true,
+                                        start_minimized_to_tray: false,
+                                        exit_when_monitored_app_closes: false,
                                         randomized_generation_timer_enabled: false,
                                         randomized_generation_timer_min: 30,
                                         randomized_generation_timer_max: 100,
+                                        first_launch: false, // Don't show popup on migration
                                     };
                                     self.settings = settings.clone();
                                     self.temp_settings = settings.clone();
@@ -227,11 +327,11 @@ impl SettingsDialog {
                                     } else {
                                         self.channel_input = loaded_channel.to_string();
                                     }
-                                    if let Ok(json) = serde_json::to_string_pretty(&settings) {
-                                        let _ = std::fs::write(&appdata_settings_path, json);
-                                        println!("[DEBUG] Migrated and saved settings in new format.");
-                                        log_and_print!("[DEBUG] Migrated and saved settings in new format.");
-                                    }
+                                    println!("[DEBUG] Migrated settings from old installer format to BotSettings format.");
+                                    log_and_print!("[DEBUG] Migrated settings from old installer format to BotSettings format.");
+                                    log_and_print!("[DEBUG] Converted settings - channel: {}, nickname: {}, denied_users: {:?}, cooldown: {}, generate_commands: {:?}", 
+                                        settings.channel, settings.nickname, settings.denied_users, settings.cooldown, settings.generate_commands);
+                                    // Note: We do NOT save back to the installer settings file to preserve the original format
                                 }
                                 Err(e2) => {
                                     println!("[DEBUG] Failed to parse as old installer settings: {}", e2);
@@ -272,9 +372,34 @@ impl SettingsDialog {
                 format!("!{}", trimmed)
             })
             .collect();
+        
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| "".to_string());
+        
+        // Save installer settings file in the GUI format (same as old working version)
         let appdata_settings_path = PathBuf::from(format!("{}\\YapBot\\TwitchMarkovChain\\{}", appdata, INSTALLER_SETTINGS_FILENAME));
-        if let Ok(json) = serde_json::to_string_pretty(&self.settings) {
+        
+        // Save in the GUI format (BotSettings format) - same as the old working version
+        let installer_settings = serde_json::json!({
+            "Channel": self.settings.channel,
+            "Nickname": self.settings.nickname,
+            "Authentication": self.settings.authentication,
+            "DeniedUsers": self.settings.denied_users,
+            "AllowedUsers": self.settings.allowed_users,
+            "Cooldown": self.settings.cooldown,
+            "KeyLength": self.settings.key_length,
+            "MaxSentenceWordAmount": self.settings.max_sentence_word_amount,
+            "MinSentenceWordAmount": self.settings.min_sentence_word_amount,
+            "AutomaticGenerationTimer": self.settings.automatic_generation_timer,
+            "GenerateCommands": self.settings.generate_commands,
+            "SoundEnabled": self.settings.sound_enabled,
+            "StartMinimizedToTray": self.settings.start_minimized_to_tray,
+            "ExitWhenMonitoredAppCloses": self.settings.exit_when_monitored_app_closes,
+            "RandomizedGenerationTimerEnabled": self.settings.randomized_generation_timer_enabled,
+            "RandomizedGenerationTimerMin": self.settings.randomized_generation_timer_min,
+            "RandomizedGenerationTimerMax": self.settings.randomized_generation_timer_max
+        });
+        
+        if let Ok(json) = serde_json::to_string_pretty(&installer_settings) {
             let _ = std::fs::create_dir_all(appdata_settings_path.parent().unwrap());
             let _ = std::fs::write(&appdata_settings_path, json);
             log_and_print!("[DEBUG] Saved GUI settings to {}", INSTALLER_SETTINGS_FILENAME);
@@ -340,6 +465,55 @@ impl SettingsDialog {
         // Send RESTART_BOT message to main GUI via TCP
         if let Ok(mut stream) = std::net::TcpStream::connect("127.0.0.1:9876") {
             let _ = stream.write_all(b"RESTART_BOT");
+        }
+    }
+
+    /// Reloads settings from all sources before saving
+    /// This ensures we have the most up-to-date information when saving
+    pub fn reload_and_save_settings(&mut self) {
+        // First reload settings from all sources
+        if let Err(e) = self.load_settings() {
+            log_and_print!("[ERROR] Failed to reload settings before saving: {}", e);
+        }
+        
+        // Then save the settings
+        self.save_settings();
+    }
+
+    /// Updates only the first_launch field in the installer settings file
+    /// This preserves the original installer settings format and prevents duplicates
+    pub fn update_first_launch_only(&self, first_launch: bool) {
+        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| "".to_string());
+        let appdata_settings_path = PathBuf::from(format!("{}\\YapBot\\TwitchMarkovChain\\{}", appdata, INSTALLER_SETTINGS_FILENAME));
+        
+        if appdata_settings_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&appdata_settings_path) {
+                if let Ok(mut json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    // Check if first_launch field already exists
+                    let field_exists = json.get("first_launch").is_some();
+                    
+                    // Update or add the first_launch field
+                    json["first_launch"] = serde_json::Value::Bool(first_launch);
+                    
+                    if let Ok(updated_json) = serde_json::to_string_pretty(&json) {
+                        if let Err(e) = std::fs::write(&appdata_settings_path, updated_json) {
+                            log_and_print!("[ERROR] Failed to update first_launch in installer settings: {}", e);
+                        } else {
+                            if field_exists {
+                                log_and_print!("[DEBUG] Updated existing first_launch field to {} in installer settings", first_launch);
+                            } else {
+                                log_and_print!("[DEBUG] Added first_launch field with value {} to installer settings", first_launch);
+                            }
+                        }
+                    }
+                } else {
+                    log_and_print!("[ERROR] Failed to parse installer settings file as JSON");
+                }
+            } else {
+                log_and_print!("[ERROR] Failed to read installer settings file");
+            }
+        } else {
+            log_and_print!("[WARNING] Installer settings file does not exist, cannot update first_launch field");
         }
     }
 
@@ -485,10 +659,21 @@ impl SettingsDialog {
                 ui.add_space(2.0);
                 ui.separator();
                 ui.horizontal(|ui| {
-                    ui.label("Sound:");
                     let prev = self.temp_settings.sound_enabled;
                     if ui.checkbox(&mut self.temp_settings.sound_enabled, "Enable sound").changed() {
                         log_and_print!("[SETTINGS] Changed: Enable sound: {} -> {}", prev, self.temp_settings.sound_enabled);
+                    }
+                });
+                ui.horizontal(|ui| {
+                    let prev = self.temp_settings.start_minimized_to_tray;
+                    if ui.checkbox(&mut self.temp_settings.start_minimized_to_tray, "Start minimized to tray").changed() {
+                        log_and_print!("[SETTINGS] Changed: Start minimized to tray: {} -> {}", prev, self.temp_settings.start_minimized_to_tray);
+                    }
+                });
+                ui.horizontal(|ui| {
+                    let prev = self.temp_settings.exit_when_monitored_app_closes;
+                    if ui.checkbox(&mut self.temp_settings.exit_when_monitored_app_closes, "Automatically exit when OBS or Streamlabs close").changed() {
+                        log_and_print!("[SETTINGS] Changed: Automatically exit when OBS or Streamlabs close: {} -> {}", prev, self.temp_settings.exit_when_monitored_app_closes);
                     }
                 });
                 // Twitch Account Info

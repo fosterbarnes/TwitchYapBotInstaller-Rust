@@ -13,6 +13,8 @@ mod settings;
 mod buttons;
 mod config;
 mod log_util;
+mod traymond;
+mod obs_monitor;
 use eframe::egui;
 use egui::ViewportBuilder;
 use std::env;

@@ -20,6 +20,8 @@ use std::os::windows::process::CommandExt;
 const TWITCH_YAP_BOT_EXE: &[u8] = include_bytes!("../resources/runner/TwitchYapBot.exe");
 // Embed the YapBotUpdater.exe
 const YAP_BOT_UPDATER_EXE: &[u8] = include_bytes!("../resources/updater/YapBotUpdater.exe");
+// Embed the traymond-tcp.exe
+const TRAYMOND_TCP_EXE: &[u8] = include_bytes!("../resources/binaries/traymond-tcp.exe");
 
 impl YapBotInstaller {
     /// Draw a spinning progress indicator
@@ -625,6 +627,9 @@ impl YapBotInstaller {
                         // Always overwrite YapBotUpdater.exe
                         let updater_dest = exe_dest.parent().unwrap().join("YapBotUpdater.exe");
                         let _ = std::fs::write(&updater_dest, YAP_BOT_UPDATER_EXE);
+                        // Always overwrite traymond-tcp.exe
+                        let traymond_dest = exe_dest.parent().unwrap().join("traymond-tcp.exe");
+                        let _ = std::fs::write(&traymond_dest, TRAYMOND_TCP_EXE);
                         // Always copy the updated MarkovChainBot.py with trigger functionality
                         use include_dir::DirEntry;
                         use crate::data_structures::TWITCH_MARKOVCHAIN_DIR;

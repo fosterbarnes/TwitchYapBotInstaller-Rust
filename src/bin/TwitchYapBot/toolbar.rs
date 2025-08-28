@@ -152,6 +152,12 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                                 }
                                 if button.clicked() && !app.updating {
                                     app.updating = true;
+                                    
+                                    // Set first_launch to true when update is initiated
+                                    app.settings_dialog.settings.first_launch = true;
+                                    app.settings_dialog.temp_settings.first_launch = true;
+                                    app.settings_dialog.update_first_launch_only(true);
+                                    
                                     // Create a channel for update completion
                                     let (tx, rx) = mpsc::channel();
                                     let tx_mutex = UPDATE_RESULT_TX.get_or_init(|| Mutex::new(None));
@@ -242,7 +248,23 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                     }
                     let _ = cmd.spawn();
                 }
-                ui.add_space(12.0);
+                ui.add_space(8.0);
+                // Minimize to tray button (left of settings button)
+                let minimize_resp = ui.add_sized([icon_size, icon_size], buttons::minimize_to_tray_button(ctx, icon_size)).on_hover_text("Minimize to Tray");
+                if minimize_resp.clicked() {
+                    log_and_print!("[GUI] Minimize to tray button pressed");
+                    if app.traymond_launched && app.window_ready_for_minimize {
+                        if let Err(e) = crate::traymond::minimize_twitch_yap_bot_to_tray() {
+                            log_and_print!("[GUI] ERROR: Failed to minimize to tray: {}", e);
+                        } else {
+                            log_and_print!("[GUI] Successfully minimized to tray");
+                            app.is_window_minimized = true;
+                        }
+                    } else {
+                        log_and_print!("[GUI] ERROR: Cannot minimize to tray - traymond not ready");
+                    }
+                }
+                ui.add_space(8.0);
                 // Revive button
                 let revive_resp = ui.add_sized([121.0, 45.0], buttons::revive_button(ctx)).on_hover_text("Restart Yap Bot");
                 if revive_resp.clicked() {

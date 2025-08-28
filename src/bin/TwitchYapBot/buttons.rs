@@ -94,3 +94,37 @@ pub fn yap_button(ctx: &egui::Context) -> egui::ImageButton {
     let yap_texture = load_button_texture(ctx, "yap_button", yap_image);
     egui::ImageButton::new((yap_texture.id(), egui::vec2(121.0, 45.0)))
 }
+
+/// Draws the minimize to tray button and returns true if clicked.
+pub fn minimize_to_tray_button(ctx: &egui::Context, size: f32) -> egui::ImageButton {
+    let minimize_image = include_bytes!("../../../resources/buttons/MinimizeToTray.png");
+    let cache_id = format!("minimize_to_tray_{}", size);
+    let id = egui::Id::new(cache_id);
+    let texture = ctx.data(|data| {
+        data.get_temp::<egui::TextureHandle>(id)
+    });
+    let minimize_texture = if let Some(tex) = texture {
+        tex
+    } else {
+        // Decode and resize the image only once per size
+        let image = image::load_from_memory(minimize_image).unwrap().to_rgba8();
+        let (orig_w, orig_h) = image.dimensions();
+        let target_size = size.round() as u32;
+        let resized = if orig_w != target_size || orig_h != target_size {
+            image::imageops::resize(&image, target_size, target_size, FilterType::Lanczos3)
+        } else {
+            image
+        };
+        let size_arr = [resized.width() as usize, resized.height() as usize];
+        let tex = ctx.load_texture(
+            &format!("minimize_to_tray_{}", size),
+            egui::ColorImage::from_rgba_unmultiplied(size_arr, &resized.into_raw()),
+            egui::TextureOptions::LINEAR,
+        );
+        ctx.data_mut(|data| {
+            data.insert_temp(id, tex.clone());
+        });
+        tex
+    };
+    egui::ImageButton::new((minimize_texture.id(), egui::vec2(size, size)))
+}
