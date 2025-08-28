@@ -37,4 +37,5 @@ TwitchYapBot:
 
 
 YapBotUpdater:
+
 <img width="400" height="112" alt="YapBotUpdaterv5 0 1" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
