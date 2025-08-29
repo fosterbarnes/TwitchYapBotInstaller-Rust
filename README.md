@@ -7,7 +7,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - Download and install both x86 & x64 versions of [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
   - [vc_redist.x86.exe](https://aka.ms/vs/17/release/vc_redist.x86.exe)
   - [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.3/Yap.Bot.Installer.v5.0.3.exe)
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.4/Yap.Bot.Installer.v5.0.4.exe)
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 - The install will live at `YourUserName\AppData\Roaming\YapBot`. User specified install locations are planned for the future
 
@@ -23,7 +23,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - The installer, client app and updater are built using Rust
 
 ## Components
-- `Yap Bot Installer v5.0.3.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
+- `Yap Bot Installer v5.0.4.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
 - `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
 - `traymond-tcp.exe` is responsible for minimizing the app to the system tray https://github.com/fosterbarnes/traymond-tcp
@@ -31,7 +31,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 ## Screenshots
 Yap Bot Installer:
 
-<img width="800" height="610" alt="Yap Bot Installer v5 0 1" src="https://github.com/user-attachments/assets/835e3973-5907-44b6-9071-61347f4ea31d" />
+<img width="800" height="610" alt="Yap Bot Installer v5 0 1" src="https://i.postimg.cc/76F9b4r1/window-minimize2.png" />
 
 
 
@@ -43,7 +43,7 @@ TwitchYapBot:
 
 YapBotUpdater:
 
-<img width="400" height="112" alt="YapBotUpdaterv5 0 1" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
+<img width="400" height="112" alt="YapBotUpdaterv5 0 1" src="https://i.postimg.cc/76F9b4r1/window-minimize2.png" />
 
 ## Support
 

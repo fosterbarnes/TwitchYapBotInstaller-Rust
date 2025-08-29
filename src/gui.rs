@@ -3,6 +3,10 @@
 //! This module contains all the UI rendering methods and components.
 
 use eframe::egui;
+use winreg::enums::*;
+use winreg::RegKey;
+use tokio::io::AsyncWriteExt;
+
 use crate::{
     data_structures::YapBotInstaller,
     edit_settings_py,
@@ -22,6 +26,187 @@ const TWITCH_YAP_BOT_EXE: &[u8] = include_bytes!("../resources/runner/TwitchYapB
 const YAP_BOT_UPDATER_EXE: &[u8] = include_bytes!("../resources/updater/YapBotUpdater.exe");
 // Embed the traymond-tcp.exe
 const TRAYMOND_TCP_EXE: &[u8] = include_bytes!("../resources/binaries/traymond-tcp.exe");
+
+/// Check if Visual C++ Redistributable x86 is installed
+fn is_vcredist_x86_installed() -> bool {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    
+    // Check multiple possible registry paths for Visual C++ Redistributables
+    let paths = vec![
+        "SOFTWARE\\Microsoft\\VisualStudio\\17.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\Microsoft\\VisualStudio\\16.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\Microsoft\\VisualStudio\\15.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\17.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\16.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\15.0\\VC\\Runtimes\\x86",
+        "SOFTWARE\\WOW6432Node\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x86",
+    ];
+    
+    eprintln!("Checking x86 VC++ Redistributable registry paths:");
+    for path in &paths {
+        match hklm.open_subkey(path) {
+            Ok(key) => {
+                match key.get_value::<u32, _>("Installed") {
+                    Ok(installed) => {
+                        eprintln!("  {}: Installed = {}", path, installed);
+                        if installed == 1 {
+                            eprintln!("  Found x86 VC++ Redistributable at: {}", path);
+                            return true;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("  {}: Could not read 'Installed' value: {}", path, e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}: Could not open key: {}", path, e);
+            }
+        }
+    }
+    
+    // Also check for the specific product codes
+    let product_paths = vec![
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{65E5BD06-6392-3027-8C26-853107D3CF1B}", // VS 2015-2022 x86
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{A8F89E5F-4B2C-3B9C-8E31-2B86C2291904}", // VS 2015-2022 x86 (alternative)
+    ];
+    
+    eprintln!("Checking x86 VC++ Redistributable product codes:");
+    for path in &product_paths {
+        match hklm.open_subkey(path) {
+            Ok(key) => {
+                match key.get_value::<String, _>("DisplayName") {
+                    Ok(display_name) => {
+                        eprintln!("  {}: DisplayName = {}", path, display_name);
+                        eprintln!("  Found x86 VC++ Redistributable product at: {}", path);
+                        return true;
+                    }
+                    Err(e) => {
+                        eprintln!("  {}: Could not read 'DisplayName' value: {}", path, e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}: Could not open key: {}", path, e);
+            }
+        }
+    }
+    
+    eprintln!("No x86 VC++ Redistributable found in registry");
+    false
+}
+
+/// Check if Visual C++ Redistributable x64 is installed
+fn is_vcredist_x64_installed() -> bool {
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+    
+    // Check multiple possible registry paths for Visual C++ Redistributables
+    let paths = vec![
+        "SOFTWARE\\Microsoft\\VisualStudio\\17.0\\VC\\Runtimes\\x64",
+        "SOFTWARE\\Microsoft\\VisualStudio\\16.0\\VC\\Runtimes\\x64",
+        "SOFTWARE\\Microsoft\\VisualStudio\\15.0\\VC\\Runtimes\\x64",
+        "SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64",
+    ];
+    
+    eprintln!("Checking x64 VC++ Redistributable registry paths:");
+    for path in &paths {
+        match hklm.open_subkey(path) {
+            Ok(key) => {
+                match key.get_value::<u32, _>("Installed") {
+                    Ok(installed) => {
+                        eprintln!("  {}: Installed = {}", path, installed);
+                        if installed == 1 {
+                            eprintln!("  Found x64 VC++ Redistributable at: {}", path);
+                            return true;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("  {}: Could not read 'Installed' value: {}", path, e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}: Could not open key: {}", path, e);
+            }
+        }
+    }
+    
+    // Also check for the specific product codes
+    let product_paths = vec![
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{36F68A90-239C-34DF-B58C-64F30147CD5F}", // VS 2015-2022 x64
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{A8F89E5F-4B2C-3B9C-8E31-2B86C2291904}", // VS 2015-2022 x64 (alternative)
+    ];
+    
+    eprintln!("Checking x64 VC++ Redistributable product codes:");
+    for path in &product_paths {
+        match hklm.open_subkey(path) {
+            Ok(key) => {
+                match key.get_value::<String, _>("DisplayName") {
+                    Ok(display_name) => {
+                        eprintln!("  {}: DisplayName = {}", path, display_name);
+                        eprintln!("  Found x64 VC++ Redistributable product at: {}", path);
+                        return true;
+                    }
+                    Err(e) => {
+                        eprintln!("  {}: Could not read 'DisplayName' value: {}", path, e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("  {}: Could not open key: {}", path, e);
+            }
+        }
+    }
+    
+    eprintln!("No x64 VC++ Redistributable found in registry");
+    false
+}
+
+/// Download and install Visual C++ Redistributable (synchronous version)
+fn install_vcredist_sync(url: &str, filename: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let temp_dir = std::env::temp_dir();
+    let installer_path = temp_dir.join(filename);
+    
+    // Create runtime once and reuse it
+    let rt = tokio::runtime::Runtime::new()?;
+    
+    // Download the installer using chunked download like the updater
+    eprintln!("Downloading {} from {}", filename, url);
+    rt.block_on(async {
+        let client = reqwest::Client::new();
+        let mut response = client.get(url).send().await?;
+        let mut file = tokio::fs::File::create(&installer_path).await?;
+        while let Some(chunk) = response.chunk().await? {
+            file.write_all(&chunk).await?;
+        }
+        Ok::<(), Box<dyn std::error::Error>>(())
+    })?;
+    eprintln!("Downloaded {} to {}", filename, installer_path.display());
+    
+    // Launch the installer (exactly like the updater)
+    eprintln!("Launching installer: {}", installer_path.display());
+    let mut child = std::process::Command::new(&installer_path)
+        .spawn()?;
+    
+    // Wait for the installer to complete (exactly like the updater)
+    eprintln!("Waiting for installer to complete...");
+    let _ = child.wait()?;
+    eprintln!("Installer completed");
+    
+    // Don't check status.success() - the installer can return non-zero exit codes
+    // for valid operations like "Close" or "Repair" that don't indicate failure
+    // Just proceed as long as the process completed
+    
+    // Clean up the downloaded installer using async like the updater
+    eprintln!("Cleaning up installer file...");
+    rt.block_on(async {
+        let _ = tokio::fs::remove_file(&installer_path).await;
+    });
+    eprintln!("Cleanup completed");
+    
+    Ok(())
+}
 
 impl YapBotInstaller {
     /// Draw a spinning progress indicator
@@ -262,6 +447,8 @@ impl YapBotInstaller {
                     self.step4_just_changed = true; // force open
                     self.step4_skipped_to_from_settings = true;
                     self.show_paste_token_btn = true; // always show paste button
+                    // When settings are loaded, still run step 4 from the beginning
+                    self.step4_action_index = 0;
                     // Restore DB prompt answer state
                     if let Some(ans) = settings.step4_db_prompt_answered_yes {
                         self.step4_db_prompt_answered = true;
@@ -649,7 +836,8 @@ impl YapBotInstaller {
                             // Full copy for fresh installs
                             let _ = copy_embedded_twitch_markovchain_to(&dest);
                         }
-                        tx.send(1).ok();
+                        eprintln!("Sending completion signal for action 0");
+                        tx.send(0).ok();
                     }
                 });
             } else if self.step4_action_index == 1 && !self.step4_action_running {
@@ -698,7 +886,8 @@ impl YapBotInstaller {
                         allow_generate_params,
                         &generate_command_list
                     );
-                    tx.send(2).ok();
+                        eprintln!("Sending completion signal for action 1");
+                        tx.send(1).ok();
                 });
             } else if self.step4_action_index == 2 && !self.step4_action_running {
                 self.step4_action_running = true;
@@ -765,60 +954,329 @@ impl YapBotInstaller {
                             whisper_cooldown
                         );
                         let _ = std::fs::write(&settings_json_path, json_str);
-                        tx.send(3).ok();
+                        eprintln!("Sending completion signal for action 2");
+                        tx.send(2).ok();
                     }
                 });
             } else if self.step4_action_index == 3 && !self.step4_action_running {
+                eprintln!("DEBUG: Starting action 3 (shortcut creation)");
                 self.step4_action_running = true;
                 let appdata = std::env::var("APPDATA").unwrap_or_else(|_| "".to_string());
-                let exe_dest = std::path::PathBuf::from(format!("{}/YapBot/TwitchYapBot.exe", appdata));
+                let exe_dest = std::path::PathBuf::from(format!("{}\\YapBot\\TwitchYapBot.exe", appdata));
                 let exe_bytes = TWITCH_YAP_BOT_EXE;
                 std::thread::spawn({
                     let tx = self.step4_action_tx.clone();
                     move || {
-                        let _ = std::fs::create_dir_all(exe_dest.parent().unwrap());
-                        let _ = std::fs::write(&exe_dest, exe_bytes);
+                        // Create directory and handle errors
+                        if let Err(e) = std::fs::create_dir_all(exe_dest.parent().unwrap()) {
+                            eprintln!("ERROR: Failed to create directory: {}", e);
+                            tx.send(3).ok();
+                            return;
+                        }
+                        
+                        // Write executable and handle errors
+                        if let Err(e) = std::fs::write(&exe_dest, exe_bytes) {
+                            eprintln!("ERROR: Failed to write executable: {}", e);
+                            tx.send(3).ok();
+                            return;
+                        }
+                        
+                        // Wait a moment and verify the executable exists before creating shortcuts
+                        std::thread::sleep(std::time::Duration::from_millis(1000));
+                        
+                        // Verify the target executable exists and is accessible
+                        if !exe_dest.exists() {
+                            eprintln!("ERROR: Target executable does not exist after write: {}", exe_dest.display());
+                            tx.send(3).ok();
+                            return;
+                        }
+                        
+                        // Try to open the file to ensure it's fully written and accessible
+                        if let Err(e) = std::fs::File::open(&exe_dest) {
+                            eprintln!("ERROR: Cannot open target executable: {}", e);
+                            tx.send(3).ok();
+                            return;
+                        }
+                        
+                        // Get file size to ensure it's fully written
+                        if let Ok(metadata) = std::fs::metadata(&exe_dest) {
+                            eprintln!("Target executable verified - Size: {} bytes", metadata.len());
+                        } else {
+                            eprintln!("ERROR: Cannot get file metadata");
+                            tx.send(3).ok();
+                            return;
+                        }
+                        
+                        eprintln!("Target executable verified and accessible: {}", exe_dest.display());
+                        
                         // Create Desktop and Start Menu shortcuts using PowerShell
+                        eprintln!("=== Starting shortcut creation process ===");
                         #[cfg(windows)]
                         {
-                            use std::process::Command;
+                            // Log system information for debugging VM issues
+                            eprintln!("=== System Information for Shortcut Creation ===");
+                            eprintln!("APPDATA: {}", appdata);
+                            if let Ok(user_profile) = std::env::var("USERPROFILE") {
+                                eprintln!("USERPROFILE: {}", user_profile);
+                            }
                             if let Some(desktop) = dirs::desktop_dir() {
-                                let shortcut_path = desktop.join("Twitch Yap Bot.lnk");
-                                let target_path = exe_dest.to_string_lossy();
-                                let ps_cmd = format!(
-                                    "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut(\"{}\"); $Shortcut.TargetPath = \"{}\"; $Shortcut.Save();",
-                                    shortcut_path.display(), target_path
-                                );
-                                let _ = Command::new("powershell")
-                                    .args(["-NoProfile", "-Command", &ps_cmd])
+                                eprintln!("Desktop directory: {}", desktop.display());
+                            }
+                            eprintln!("Target executable: {}", exe_dest.display());
+                            eprintln!("Target exists: {}", exe_dest.exists());
+                            eprintln!("================================================");
+                            use std::process::Command;
+                            
+                            // Helper function to create a shortcut using PowerShell
+                            fn create_shortcut(target_path: &str, shortcut_path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+                                // Ensure the parent directory exists
+                                if let Some(parent) = shortcut_path.parent() {
+                                    std::fs::create_dir_all(parent)?;
+                                }
+                                
+                                // Verify target executable exists
+                                if !std::path::Path::new(target_path).exists() {
+                                    return Err(format!("Target executable does not exist: {}", target_path).into());
+                                }
+                                
+                                // Escape the paths properly for PowerShell and handle special characters
+                                let shortcut_path_escaped = shortcut_path.display().to_string().replace("\\", "\\\\").replace("'", "''");
+                                let target_path_escaped = target_path.replace("\\", "\\\\").replace("'", "''");
+                                let working_dir = std::path::Path::new(target_path).parent().unwrap_or_else(|| std::path::Path::new("")).display().to_string().replace("\\", "\\\\").replace("'", "''");
+                                
+                                // Try multiple PowerShell approaches for better compatibility
+                                let ps_commands = vec![
+                                    // Method 1: Standard WScript.Shell approach with proper error handling
+                                    format!(
+                                        "try {{ $WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Save(); Write-Host 'Success' }} catch {{ Write-Error $_.Exception.Message; exit 1 }}",
+                                        shortcut_path_escaped, target_path_escaped, working_dir
+                                    ),
+                                    // Method 2: Alternative with explicit COM object creation and validation
+                                    format!(
+                                        "try {{ $WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Save(); if (Test-Path '{}') {{ Write-Host 'Success' }} else {{ throw 'Shortcut file not created' }} }} catch {{ Write-Error $_.Exception.Message; exit 1 }}",
+                                        shortcut_path_escaped, target_path_escaped, working_dir, shortcut_path_escaped
+                                    ),
+                                    // Method 3: Using different execution policy and COM object approach
+                                    format!(
+                                        "try {{ Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force; $WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Save(); Write-Host 'Success' }} catch {{ Write-Error $_.Exception.Message; exit 1 }}",
+                                        shortcut_path_escaped, target_path_escaped, working_dir
+                                    ),
+                                    // Method 4: Using Windows Forms approach as alternative
+                                    format!(
+                                        "try {{ Add-Type -AssemblyName System.Windows.Forms; $WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Save(); Write-Host 'Success' }} catch {{ Write-Error $_.Exception.Message; exit 1 }}",
+                                        shortcut_path_escaped, target_path_escaped, working_dir
+                                    ),
+                                    // Method 5: Simple approach with minimal dependencies
+                                    format!(
+                                        "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('{}'); $Shortcut.TargetPath = '{}'; $Shortcut.WorkingDirectory = '{}'; $Shortcut.Save()",
+                                        shortcut_path_escaped, target_path_escaped, working_dir
+                                    )
+                                ];
+                                
+                                let mut last_error = None;
+                                
+                                // Try to find PowerShell executable
+                                let powershell_paths = vec![
+                                    "powershell.exe",
+                                    "pwsh.exe",
+                                    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                                    "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+                                ];
+                                
+                                let mut powershell_found = None;
+                                for ps_path in &powershell_paths {
+                                    if let Ok(output) = Command::new(ps_path)
+                                        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "Write-Host 'test'"])
+                                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                        .output() {
+                                        if output.status.success() {
+                                            powershell_found = Some(ps_path);
+                                            eprintln!("Found PowerShell at: {}", ps_path);
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                if powershell_found.is_none() {
+                                    return Err("PowerShell not found on system".into());
+                                }
+                                
+                                for (i, ps_cmd) in ps_commands.iter().enumerate() {
+                                    eprintln!("Trying PowerShell method {} for shortcut creation", i + 1);
+                                    // Small delay between attempts to avoid race conditions
+                                    if i > 0 {
+                                        std::thread::sleep(std::time::Duration::from_millis(100));
+                                    }
+                                    let output = Command::new(powershell_found.unwrap())
+                                        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd])
+                                        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                        .output();
+                                    
+                                    match output {
+                                        Ok(output) => {
+                                            if output.status.success() {
+                                                // Verify the shortcut was actually created
+                                                if shortcut_path.exists() {
+                                                    return Ok(());
+                                                } else {
+                                                    last_error = Some(format!("Method {} succeeded but shortcut file not found", i + 1));
+                                                }
+                                            } else {
+                                                let stderr = String::from_utf8_lossy(&output.stderr);
+                                                let stdout = String::from_utf8_lossy(&output.stdout);
+                                                last_error = Some(format!("Method {} failed - stderr: {}, stdout: {}", i + 1, stderr, stdout));
+                                            }
+                                        }
+                                        Err(e) => {
+                                            last_error = Some(format!("Method {} failed to execute: {}", i + 1, e));
+                                        }
+                                    }
+                                }
+                                
+                                // If all PowerShell methods failed, try cmd-based approach as last resort
+                                eprintln!("All PowerShell methods failed, trying cmd-based approach...");
+                                
+                                // Try using cmd with mklink to create shortcut
+                                let cmd_command = format!("mklink \"{}\" \"{}\"", shortcut_path.display(), target_path);
+                                let output = Command::new("cmd")
+                                    .args(["/C", &cmd_command])
                                     .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                     .output();
+                                
+                                match output {
+                                    Ok(output) => {
+                                        if output.status.success() {
+                                            eprintln!("Successfully created shortcut using cmd");
+                                            Ok(())
+                                        } else {
+                                            let stderr = String::from_utf8_lossy(&output.stderr);
+                                            eprintln!("cmd approach failed: {}", stderr);
+                                            Err(format!("All shortcut creation methods failed. Last error: {}", last_error.unwrap_or_else(|| "Unknown error".to_string())).into())
+                                        }
+                                    }
+                                    Err(e) => {
+                                        eprintln!("cmd approach failed to execute: {}", e);
+                                        Err(format!("All shortcut creation methods failed. Last error: {}", last_error.unwrap_or_else(|| "Unknown error".to_string())).into())
+                                    }
+                                }
                             }
-                            // Start Menu shortcut
-                            let start_menu = std::path::Path::new(&appdata)
-                                .join("Microsoft/Windows/Start Menu/Programs");
-                            let shortcut_path = start_menu.join("Twitch Yap Bot.lnk");
+                            
                             let target_path = exe_dest.to_string_lossy();
-                            let ps_cmd = format!(
-                                "$WshShell = New-Object -ComObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut(\"{}\"); $Shortcut.TargetPath = \"{}\"; $Shortcut.Save();",
-                                shortcut_path.display(), target_path
-                            );
-                            let _ = Command::new("powershell")
-                                .args(["-NoProfile", "-Command", &ps_cmd])
-                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                                .output();
+                            
+                            // Create Desktop shortcut
+                            if let Some(desktop) = dirs::desktop_dir() {
+                                let shortcut_path = desktop.join("Twitch Yap Bot.lnk");
+                                eprintln!("Attempting to create desktop shortcut at: {}", shortcut_path.display());
+                                if let Err(e) = create_shortcut(&target_path, &shortcut_path) {
+                                    eprintln!("Failed to create desktop shortcut: {}", e);
+                                } else {
+                                    eprintln!("Successfully created desktop shortcut");
+                                }
+                            } else {
+                                eprintln!("Could not determine desktop directory");
+                            }
+                            
+                            // Create Start Menu shortcut
+                            let start_menu = std::path::Path::new(&appdata)
+                                .join("Microsoft\\Windows\\Start Menu\\Programs");
+                            let shortcut_path = start_menu.join("Twitch Yap Bot.lnk");
+                            eprintln!("Attempting to create start menu shortcut at: {}", shortcut_path.display());
+                            if let Err(e) = create_shortcut(&target_path, &shortcut_path) {
+                                eprintln!("Failed to create start menu shortcut: {}", e);
+                                
+                                // Try alternative start menu location for some VM configurations
+                                if let Ok(user_profile) = std::env::var("USERPROFILE") {
+                                    let alt_start_menu = std::path::Path::new(&user_profile)
+                                        .join("AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs");
+                                    let alt_shortcut_path = alt_start_menu.join("Twitch Yap Bot.lnk");
+                                    eprintln!("Trying alternative start menu location: {}", alt_shortcut_path.display());
+                                    if let Err(e2) = create_shortcut(&target_path, &alt_shortcut_path) {
+                                        eprintln!("Failed to create alternative start menu shortcut: {}", e2);
+                                    } else {
+                                        eprintln!("Successfully created alternative start menu shortcut");
+                                    }
+                                }
+                            } else {
+                                eprintln!("Successfully created start menu shortcut");
+                            }
                         }
+                        eprintln!("=== Shortcut creation process completed ===");
+                        eprintln!("Sending completion signal for action 3");
+                        tx.send(3).ok();
+                    }
+                });
+            } else if self.step4_action_index == 4 && !self.step4_action_running {
+                eprintln!("DEBUG: Starting action 4 (VC++ redistributable check)");
+                self.step4_action_running = true;
+                std::thread::spawn({
+                    let tx = self.step4_action_tx.clone();
+                    move || {
+                        // Check and install Visual C++ Redistributables if needed
+                        eprintln!("Checking Visual C++ Redistributables...");
+                        
+                        let mut vcredist_installed = 0;
+                        let mut vcredist_total = 0;
+                        
+                        // Check x86 version
+                        let x86_installed = is_vcredist_x86_installed();
+                        eprintln!("VC++ Redistributable x86 installed: {}", x86_installed);
+                        if !x86_installed {
+                            vcredist_total += 1;
+                            eprintln!("Installing Visual C++ Redistributable x86...");
+                            
+                            if let Err(e) = install_vcredist_sync(
+                                "https://aka.ms/vs/17/release/vc_redist.x86.exe",
+                                "vc_redist.x86.exe",
+                            ) {
+                                eprintln!("Failed to install VC++ Redistributable x86: {}", e);
+                            } else {
+                                vcredist_installed += 1;
+                                eprintln!("Successfully installed VC++ Redistributable x86");
+                            }
+                        } else {
+                            eprintln!("VC++ Redistributable x86 already installed");
+                        }
+                        
+                        // Check x64 version
+                        let x64_installed = is_vcredist_x64_installed();
+                        eprintln!("VC++ Redistributable x64 installed: {}", x64_installed);
+                        if !x64_installed {
+                            vcredist_total += 1;
+                            eprintln!("Installing Visual C++ Redistributable x64...");
+                            
+                            if let Err(e) = install_vcredist_sync(
+                                "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+                                "vc_redist.x64.exe",
+                            ) {
+                                eprintln!("Failed to install VC++ Redistributable x64: {}", e);
+                            } else {
+                                vcredist_installed += 1;
+                                eprintln!("Successfully installed VC++ Redistributable x64");
+                            }
+                        } else {
+                            eprintln!("VC++ Redistributable x64 already installed");
+                        }
+                        
+                        if vcredist_total > 0 {
+                            eprintln!("Installed {} Visual C++ Redistributable(s)", vcredist_installed);
+                        } else {
+                            eprintln!("Visual C++ Redistributables already installed");
+                        }
+                        
+                        eprintln!("Sending completion signal for action 4");
                         tx.send(4).ok();
                     }
                 });
             }
             // Handle action completion
             if let Ok(idx) = self.step4_action_rx.try_recv() {
-                self.step4_action_index = idx;
+                eprintln!("Received completion signal for action {}", idx);
+                eprintln!("DEBUG: Moving from action {} to action {}", idx, idx + 1);
+                self.step4_action_index = idx + 1; // Move to next action
                 self.step4_action_running = false;
-                // If we just finished the last action (idx == 4), move to Step 5 only if:
-                // - settings were recovered on start (step4_skipped_to_from_settings), OR
-                // - the DB prompt has been answered (step4_db_prompt_answered)
+                // Set flag to force repaint in main update loop
+                self.force_repaint = true;
+                // If we just finished the last action (idx == 4), copy settings file
                 if idx == 4 {
                     // Copy YapBotInstallerSettings.json to AppData\Roaming\YapBot\TwitchMarkovChain
                     if let Ok(appdata) = std::env::var("APPDATA") {
@@ -830,13 +1288,6 @@ impl YapBotInstaller {
                             }
                             let _ = std::fs::copy(src, dst);
                         }
-                    }
-                    if self.step4_skipped_to_from_settings || self.step4_db_prompt_answered {
-                        self.step4_open = false;
-                        self.step4_just_changed = true;
-                        self.step5_visible = true;
-                        self.step5_open = true;
-                        self.step5_just_changed = true;
                     }
                 }
             }
@@ -861,16 +1312,19 @@ impl YapBotInstaller {
                                 "Copying \"YapBot\\TwitchMarkovChain\" to \"AppData\\Roaming\"",
                                 "Applying configuration to \"AppData\\Roaming\\YapBot\\TwitchMarkovChain\\Settings.py \"",
                                 "Writing settings.json to \"AppData\\Roaming\\YapBot\\TwitchMarkovChain\"",
-                                "Copying TwitchYapBot.exe. Creating Desktop and Start Menu shortcuts",
+                                "Copying TwitchYapBot.exe and creating shortcuts (this may take a moment)...",
+                                "Checking and installing Visual C++ Redistributables...",
                             ];
                             for (i, action) in actions.iter().enumerate() {
                                 if self.step4_action_index == i && self.step4_action_running {
-                                    // Show spinner while operation is in progress
-                                    Self::draw_spinner(ui, egui::Color32::from_rgb(189, 147, 249));
-                                    ui.add_space(20.0);
-                                    // Do not show the message until operation is done
+                                    // Show spinner and message while operation is in progress
+                                    ui.horizontal(|ui| {
+                                        Self::draw_spinner(ui, egui::Color32::from_rgb(189, 147, 249));
+                                        ui.add_space(20.0);
+                                        ui.label(egui::RichText::new(*action).size(13.0));
+                                    });
                                 } else if self.step4_action_index > i {
-                                    // Only show checkmark and message after operation is validated complete
+                                    // Show checkmark and message after operation is validated complete
                                     ui.horizontal(|ui| {
                                         ui.label(egui::RichText::new("✅").size(13.0).color(egui::Color32::from_rgb(80, 250, 123)));
                                         ui.label(egui::RichText::new(*action).size(13.0));
@@ -879,11 +1333,21 @@ impl YapBotInstaller {
                                 ui.add_space(8.0);
                             }
                             // DB migration prompt as part of Step 4
-                            // Only show DB prompt after all actions (including shortcut creation) are complete
-                            if self.step4_action_index >= 2 && !self.step4_db_prompt_answered && self.step4_action_index == 4 {
+                            // Only show DB prompt after all actions (including VC++ redistributables) are complete
+                            if self.step4_action_index >= 2 && !self.step4_db_prompt_answered && self.step4_action_index == 5 {
                                 self.step4_db_prompt_visible = true;
                             } else {
                                 self.step4_db_prompt_visible = false;
+                            }
+                            // Auto-transition to Step 5 if DB prompt is already answered and all actions are complete
+                            if self.step4_action_index == 5 && self.step4_db_prompt_answered && !self.step5_visible {
+                                self.step4_open = false;
+                                self.step4_just_changed = true;
+                                self.step5_visible = true;
+                                self.step5_open = true;
+                                self.step5_just_changed = true;
+                                // Force repaint for step transition
+                                self.force_repaint = true;
                             }
                             if self.step4_db_prompt_visible {
                                 ui.add_space(16.0);
@@ -911,12 +1375,14 @@ impl YapBotInstaller {
                                         });
                                         self.save_settings_to_file();
                                         // If all actions are already complete, move to Step 5 now
-                                        if self.step4_action_index == 4 {
+                                        if self.step4_action_index == 5 {
                                             self.step4_open = false;
                                             self.step4_just_changed = true;
                                             self.step5_visible = true;
                                             self.step5_open = true;
                                             self.step5_just_changed = true;
+                                            // Force repaint for step transition
+                                            self.force_repaint = true;
                                         }
                                     }
                                     if no_clicked {
@@ -924,12 +1390,14 @@ impl YapBotInstaller {
                                         self.step4_db_prompt_answered_yes = Some(false);
                                         self.save_settings_to_file();
                                         // If all actions are already complete, move to Step 5 now
-                                        if self.step4_action_index == 4 {
+                                        if self.step4_action_index == 5 {
                                             self.step4_open = false;
                                             self.step4_just_changed = true;
                                             self.step5_visible = true;
                                             self.step5_open = true;
                                             self.step5_just_changed = true;
+                                            // Force repaint for step transition
+                                            self.force_repaint = true;
                                         }
                                     }
                                 });
@@ -1080,6 +1548,19 @@ impl eframe::App for YapBotInstaller {
         // If installing Python or dependencies, or step 4 spinner is running, repaint at 60 FPS for smooth spinner
         if self.installing_python || self.installing_dependencies || self.step4_action_running {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
+        
+        // Force immediate repaint if requested
+        if self.force_repaint {
+            self.force_repaint = false;
+            ctx.request_repaint();
+        }
+        
+        // Periodic repaint every second to ensure UI responsiveness
+        let now = std::time::Instant::now();
+        if now.duration_since(self.last_periodic_repaint).as_secs() >= 1 {
+            self.last_periodic_repaint = now;
+            ctx.request_repaint();
         }
     }
 
