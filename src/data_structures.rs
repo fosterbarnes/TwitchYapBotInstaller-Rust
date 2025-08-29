@@ -103,6 +103,9 @@ pub struct YapBotInstaller {
     pub step4_db_file_tx: Option<Sender<(String, String)>>,
     pub step4_db_file_rx: Option<Receiver<(String, String)>>,
     pub step4_db_copied_files: Vec<(String, String)>,
+    // UI refresh tracking
+    pub force_repaint: bool,
+    pub last_periodic_repaint: std::time::Instant,
     pub loaded_settings: Option<YapBotInstallerSettings>,
     pub step4_skipped_to_from_settings: bool,
     // Step 5 state
@@ -192,6 +195,8 @@ impl Default for YapBotInstaller {
             step4_db_file_tx: None,
             step4_db_file_rx: None,
             step4_db_copied_files: Vec::new(),
+            force_repaint: false,
+            last_periodic_repaint: std::time::Instant::now(),
             loaded_settings: None,
             step4_skipped_to_from_settings: false,
             // Step 5 state

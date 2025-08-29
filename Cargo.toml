@@ -1,6 +1,6 @@
 [package]
 name = "yap_bot_installer"
-version = "5.0.3"
+version = "5.0.4"
 edition = "2021"
 build = "build.rs"
 
