@@ -7,4 +7,6 @@
 pub mod bubbles;
 pub mod data_structures;
 pub mod python_manager;
-pub mod center_window; 
+pub mod center_window;
+pub mod config;
+pub mod log_util; 

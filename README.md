@@ -7,22 +7,9 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - Download and install both x86 & x64 versions of [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
   - [vc_redist.x86.exe](https://aka.ms/vs/17/release/vc_redist.x86.exe)
   - [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.0.4/Yap.Bot.Installer.v5.0.4.exe)
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.1.0/Yap.Bot.Installer.v5.1.0.exe)
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 - The install will live at `YourUserName\AppData\Roaming\YapBot`. User specified install locations are planned for the future
-
-## Notes about v5.0.3 and newer
-1. If you encounter this error when launching Yap Bot:
-   
-  ![errorScreenshot](https://i.postimg.cc/NMtTnkmt/Virtual-Box-VM-f5dcj-WRF3-O.png)
-
-- Download and install [vc_redist.x86.exe](https://aka.ms/vs/17/release/vc_redist.x86.exe) then restart the app
-
-2. Starting in v5.0.3, Windows may incorrectly flag the installer as a virus. You may need to allow your browser to download it. If Windows blocks it from running, click the windows security notification that pops up, then allow it to run. More info on setting exclusions in Windows Security if needed: https://www.elevenforum.com/t/add-or-remove-exclusions-for-microsoft-defender-antivirus-in-windows-11.8797/
-
-	This is a known problem with the app, but not much can be done about it. Fixing this false flag would mean paying hundreds of dollars a year for code-signing. The component that's most likely triggering antivirus is [traymond-tcp](https://github.com/fosterbarnes/traymond-tcp). Yap Bot is built on the [egui](https://github.com/emilk/egui) library, which does not have the ability to natively minimize windows to the system tray. To be able to add this feature, I had to fork the original build of [traymond](https://github.com/fcFn/traymond) and edit it to be able to communicate with Yap Bot. The original traymond waits for a set keyboard combination from the user, then minimizes the selected window to tray when those keys are pressed. Because of this keyboard monitoring, some anti-viruses interpret this as malicious and attempt to block it. In it's current re-worked state, we don't even use the key-combo function, and just use it to receive commands from Yap Bot, then minimize Yap Bot to tray, but this original code remains in the project.
-
-	All of that being said, always exercise caution when running unknown apps from github. This app and traymond-tcp are completely open source, so feel free to go through the code and build for yourself if you're worried about anything malicious.
 
 ## How it works
 - Train Yap Bot by just typing in chat. All chatter's messages will be added to the database
@@ -36,7 +23,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - The installer, client app and updater are built using Rust
 
 ## Components
-- `Yap Bot Installer v5.0.4.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
+- `Yap Bot Installer v5.1.0.exe` is responsible for making sure python and necessary dependencies are installed, installing the included binaries (`TwitchYapBot.exe` and `YapBotUpdater.exe`) to `User\AppData\Roaming\YapBot`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
 - `YapBotUpdater.exe` responsible for automatically updating `TwitchYapBot.exe` to the newest version
 - `traymond-tcp.exe` is responsible for minimizing the app to the system tray https://github.com/fosterbarnes/traymond-tcp
@@ -67,3 +54,16 @@ https://www.twitch.tv/fosterbarnes
 
 or if you're feeling generous drop a donation:
 https://coff.ee/fosterbarnes
+
+## Notes about v5.0.3 and v5.0.4
+1. If you encounter this error when launching Yap Bot:
+   
+  ![errorScreenshot](https://i.postimg.cc/NMtTnkmt/Virtual-Box-VM-f5dcj-WRF3-O.png)
+
+- Download and install [vc_redist.x86.exe](https://aka.ms/vs/17/release/vc_redist.x86.exe) then restart the app
+
+2. Starting in v5.0.3, Windows may incorrectly flag the installer as a virus. You may need to allow your browser to download it. If Windows blocks it from running, click the windows security notification that pops up, then allow it to run. More info on setting exclusions in Windows Security if needed: https://www.elevenforum.com/t/add-or-remove-exclusions-for-microsoft-defender-antivirus-in-windows-11.8797/
+
+	This is a known problem with the app, but not much can be done about it. Fixing this false flag would mean paying hundreds of dollars a year for code-signing. The component that's most likely triggering antivirus is [traymond-tcp](https://github.com/fosterbarnes/traymond-tcp). Yap Bot is built on the [egui](https://github.com/emilk/egui) library, which does not have the ability to natively minimize windows to the system tray. To be able to add this feature, I had to fork the original build of [traymond](https://github.com/fcFn/traymond) and edit it to be able to communicate with Yap Bot. The original traymond waits for a set keyboard combination from the user, then minimizes the selected window to tray when those keys are pressed. Because of this keyboard monitoring, some anti-viruses interpret this as malicious and attempt to block it. In it's current re-worked state, we don't even use the key-combo function, and just use it to receive commands from Yap Bot, then minimize Yap Bot to tray, but this original code remains in the project.
+
+	All of that being said, always exercise caution when running unknown apps from github. This app and traymond-tcp are completely open source, so feel free to go through the code and build for yourself if you're worried about anything malicious.

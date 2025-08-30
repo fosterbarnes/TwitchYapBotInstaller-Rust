@@ -21,6 +21,11 @@ fn main() {
         res.set("FileDescription", "Yap Bot Updater");
         res.set("ProductName", "Yap Bot Updater");
         res.set("OriginalFilename", "YapBotUpdater.exe");
+    } else if exe == "YapBotTray" {
+        res.set_icon("resources/icon/yap_icon_purple.ico");
+        res.set("FileDescription", "Yap Bot Tray");
+        res.set("ProductName", "Yap Bot Tray");
+        res.set("OriginalFilename", "YapBotTray.exe");
     }
     res.compile().unwrap();
     

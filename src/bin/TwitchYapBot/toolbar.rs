@@ -12,6 +12,8 @@ use std::sync::mpsc::{self, Sender, Receiver};
 use std::panic;
 use std::sync::{Mutex, OnceLock};
 use crate::log_and_print;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 
 static UPDATE_RESULT_TX: OnceLock<Mutex<Option<Sender<Result<(), String>>>>> = OnceLock::new();
 static UPDATE_RESULT_RX: OnceLock<Mutex<Option<Receiver<Result<(), String>>>>> = OnceLock::new();
@@ -252,16 +254,68 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                 // Minimize to tray button (left of settings button)
                 let minimize_resp = ui.add_sized([icon_size, icon_size], buttons::minimize_to_tray_button(ctx, icon_size)).on_hover_text("Minimize to Tray");
                 if minimize_resp.clicked() {
-                    log_and_print!("[GUI] Minimize to tray button pressed");
-                    if app.traymond_launched && app.window_ready_for_minimize {
-                        if let Err(e) = crate::traymond::minimize_twitch_yap_bot_to_tray() {
-                            log_and_print!("[GUI] ERROR: Failed to minimize to tray: {}", e);
+                    // Always launch tray app when user clicks the tray button, regardless of launch method
+                    log_and_print!("[GUI] Minimize to tray button pressed - launching YapBotTray.exe");
+                    
+                    // Launch YapBotTray.exe from AppData\Roaming\YapBot
+                    if let Ok(appdata) = std::env::var("APPDATA") {
+                        let tray_exe_path = std::path::Path::new(&appdata)
+                            .join("YapBot")
+                            .join("YapBotTray.exe");
+                        
+                        log_and_print!("[GUI] APPDATA path: {}", appdata);
+                        log_and_print!("[GUI] Full tray path: {}", tray_exe_path.display());
+                        log_and_print!("[GUI] Tray exe exists: {}", tray_exe_path.exists());
+                        
+                        if tray_exe_path.exists() {
+                            log_and_print!("[GUI] Launching YapBotTray.exe from: {}", tray_exe_path.display());
+                            
+                            // Launch the tray app
+                            match std::process::Command::new(&tray_exe_path)
+                                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                                .spawn() {
+                                Ok(child) => {
+                                    log_and_print!("[GUI] YapBotTray.exe launched successfully with PID: {}", child.id());
+                                    
+                                    // Handle first launch flag properly (same as on_exit)
+                                    if !app.updating {
+                                        // First reload and save all settings (like clicking Save button)
+                                        app.settings_dialog.reload_and_save_settings();
+                                        // Then set first_launch to false
+                                        app.settings_dialog.settings.first_launch = false;
+                                        app.settings_dialog.temp_settings.first_launch = false;
+                                        app.settings_dialog.update_first_launch_only(false);
+                                    }
+                                    
+                                    // Stop the bot
+                                    bot_manager::stop_bot(app);
+                                    
+                                    // Clean up PowerShell processes
+                                    crate::obs_monitor::cleanup_powershell_processes();
+                                    
+                                    log_and_print!("[GUI] Exiting main GUI app");
+                                    std::process::exit(0);
+                                }
+                                Err(e) => {
+                                    log_and_print!("[GUI] ERROR: Failed to launch YapBotTray.exe: {}", e);
+                                }
+                            }
                         } else {
-                            log_and_print!("[GUI] Successfully minimized to tray");
-                            app.is_window_minimized = true;
+                            log_and_print!("[GUI] ERROR: YapBotTray.exe not found at: {}", tray_exe_path.display());
+                            // Try to list the directory contents to debug
+                            if let Ok(entries) = std::fs::read_dir(std::path::Path::new(&appdata).join("YapBot")) {
+                                log_and_print!("[GUI] Contents of YapBot directory:");
+                                for entry in entries {
+                                    if let Ok(entry) = entry {
+                                        log_and_print!("[GUI]   - {}", entry.file_name().to_string_lossy());
+                                    }
+                                }
+                            } else {
+                                log_and_print!("[GUI] Could not read YapBot directory");
+                            }
                         }
                     } else {
-                        log_and_print!("[GUI] ERROR: Cannot minimize to tray - traymond not ready");
+                        log_and_print!("[GUI] ERROR: Could not get APPDATA environment variable");
                     }
                 }
                 ui.add_space(8.0);

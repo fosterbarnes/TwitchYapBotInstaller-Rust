@@ -202,6 +202,7 @@ pub async fn perform_update(
     // Ensure directories exist
     tokio::fs::create_dir_all(&yapbot_dir).await.map_err(|e| UpdateError::Io(e.to_string()))?;
     tokio::fs::create_dir_all(&markov_dir).await.map_err(|e| UpdateError::Io(e.to_string()))?;
+    tokio::fs::create_dir_all(&yapbot_dir.join("icons")).await.map_err(|e| UpdateError::Io(e.to_string()))?;
 
     // List of files to download: (url, dest_path, display_name)
     let files = vec![
@@ -211,9 +212,9 @@ pub async fn perform_update(
             "TwitchYapBot.exe",
         ),
         (
-            "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/resources/binaries/traymond-tcp.exe",
-            yapbot_dir.join("traymond-tcp.exe"),
-            "traymond-tcp.exe",
+            "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/resources/binaries/YapBotTray.exe",
+            yapbot_dir.join("YapBotTray.exe"),
+            "YapBotTray.exe",
         ),
         (
             "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/TwitchMarkovChain/Database.py",
@@ -244,6 +245,11 @@ pub async fn perform_update(
             "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/TwitchMarkovChain/requirements.txt",
             markov_dir.join("requirements.txt"),
             "requirements.txt",
+        ),
+        (
+            "https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/raw/main/resources/icon/yap_icon_purple.ico",
+            yapbot_dir.join("icons").join("yap_icon_purple.ico"),
+            "yap_icon_purple.ico",
         ),
     ];
     let total = files.len();
