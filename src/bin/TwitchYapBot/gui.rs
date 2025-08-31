@@ -160,15 +160,7 @@ impl TwitchYapBotApp {
             let settings = SettingsDialog::new();
             if settings.settings.exit_when_monitored_app_closes {
                 log_and_print!("[OBS_MONITOR] OBS monitoring enabled in settings, starting monitor");
-                
-                // If "start minimized" is enabled, use direct exit to avoid tray issues
-                if settings.settings.start_minimized_to_tray {
-                    log_and_print!("[OBS_MONITOR] Using direct exit monitoring due to start minimized setting");
-                    obs_monitor::start_obs_monitoring_with_direct_exit();
-                    None // No receiver needed for direct exit
-                } else {
-                    Some(obs_monitor::start_obs_monitoring())
-                }
+                Some(obs_monitor::start_obs_monitoring())
             } else {
                 log_and_print!("[OBS_MONITOR] OBS monitoring disabled in settings");
                 None
