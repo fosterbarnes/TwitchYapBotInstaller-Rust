@@ -35,19 +35,28 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 ## Screenshots
 Yap Bot Installer:
 
-<img width="800" height="610" alt="Yap Bot Installer v5.0.1" src="https://github.com/user-attachments/assets/835e3973-5907-44b6-9071-61347f4ea31d" />
+<img width="800" height="610" alt="Yap Bot Installer" src="https://github.com/user-attachments/assets/835e3973-5907-44b6-9071-61347f4ea31d" />
 
 
 
 TwitchYapBot:
 
-<img width="800" height="547" alt="TwitchYapBotv5.0.3" src="https://i.postimg.cc/vHcQfby5/Twitch-Yap-Bot-Hrqd-I8z-Ipq.png" />
+<img width="800" height="547" alt="TwitchYapBot" src="https://i.postimg.cc/vHcQfby5/Twitch-Yap-Bot-Hrqd-I8z-Ipq.png" />
 
 
 
 YapBotUpdater:
 
-<img width="400" height="112" alt="YapBotUpdaterv5.0.1" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
+<img width="400" height="112" alt="YapBotUpdater" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
+
+
+
+YapBotTray:
+
+<img width="400" height="112" alt="YapBotTray" src="https://i.postimg.cc/9QNJ2mzd/JGj-Z4ccaf6.png" />
+
+
+
 
 ## Support
 
