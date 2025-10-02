@@ -1,0 +1,10 @@
+This update mainly focuses on changes in the backend (boring code stuff)
+
+Minor changes to the settings menu:
+- Changes save automatically when closing settings
+- The access token is hidden by default, with a button to show it if necessary
+
+Minor change to the toolbar:
+- Added a small donation link
+
+Full patch notes: [https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/tag/v5.1.1](v5.1.1)

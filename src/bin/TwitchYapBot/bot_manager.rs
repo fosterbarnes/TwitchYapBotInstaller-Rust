@@ -62,19 +62,14 @@ pub fn stop_bot(app: &mut TwitchYapBotApp) {
     app.output_lines.lock().unwrap().push_back(format!("[{}] {}", chrono::Local::now().format("%m/%d/%Y - %H:%M:%S"), msg));
 }
 
-/// Stop the running MarkovChainBot process directly (without GUI state updates).
-/// This is used for direct exit scenarios where we don't have access to the GUI state.
-///
-/// On Windows, uses taskkill to ensure the process is terminated.
-/// Logs all actions but doesn't update GUI state.
-pub fn stop_bot_direct() {
+/// Kill all Python processes running MarkovChainBot.py (comprehensive cleanup)
+/// This ensures no Python bot processes are left running, regardless of tracking
+pub fn kill_all_markovchain_processes() {
     #[cfg(windows)]
     {
-        // Find and kill any Python processes running MarkovChainBot.py
-        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| "".to_string());
-        let _workdir = std::path::PathBuf::from(format!("{}\\YapBot\\{}", appdata, TWITCH_MARKOVCHAIN_DIR));
+        log_and_print!("[CLEANUP] Searching for all MarkovChainBot.py processes...");
         
-        // Use tasklist to find Python processes and check if they're running MarkovChainBot.py
+        // Use tasklist to find ALL Python processes
         if let Ok(output) = Command::new("tasklist")
             .args(["/FI", "IMAGENAME eq python.exe", "/FO", "CSV"])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
@@ -93,23 +88,11 @@ pub fn stop_bot_direct() {
                                 
                                 let wmic_str = String::from_utf8_lossy(&wmic_output.stdout);
                                 if wmic_str.contains("MarkovChainBot.py") {
-                                    log_and_print!("[DEBUG] Found MarkovChainBot.py process with PID: {}", pid);
-                                    let tk_result = Command::new("taskkill")
+                                    log_and_print!("[CLEANUP] Found MarkovChainBot.py process with PID: {}, killing it", pid);
+                                    let _ = Command::new("taskkill")
                                         .args(["/PID", &pid.to_string(), "/F", "/T"])
                                         .creation_flags(0x08000000) // CREATE_NO_WINDOW
                                         .output();
-                                    if let Ok(ref out) = tk_result {
-                                        let result_str = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                                        let now = chrono::Local::now();
-                                        let timestamp = now.format("[%m/%d/%Y - %H:%M:%S]:");
-                                        for line in result_str.lines() {
-                                            let msg = format!("{} {}", timestamp, line.trim());
-                                            log_util::log_message(&msg);
-                                            if cfg!(debug_assertions) {
-                                                println!("{} {}", timestamp, line.trim());
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -118,10 +101,8 @@ pub fn stop_bot_direct() {
             }
         }
     }
-    
-    let msg = format!("Yap Bot has been destroyed by your own hands...");
-    log_and_print!("{}", msg);
 }
+
 
 /// Restart the MarkovChainBot process, optionally logging a custom message.
 ///

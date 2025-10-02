@@ -93,12 +93,9 @@ fn main() {
     // Set up signal handler for cleanup on unexpected termination
     if let Err(e) = ctrlc::set_handler(|| {
         println!("YapBotTray: Received termination signal, cleaning up...");
-        // Stop the Python bot
-        if let Err(e) = bot_manager::stop_bot() {
-            println!("YapBotTray: ERROR: Failed to stop bot on signal: {}", e);
-        }
-        // Clean up PowerShell processes used for OBS monitoring
-        obs_monitor::cleanup_powershell_processes();
+        // Comprehensive cleanup: kill ALL Python and PowerShell processes
+        bot_manager::kill_all_markovchain_processes();
+        obs_monitor::kill_all_powershell_processes();
         // Clean up lock file
         let appdata = env::var("APPDATA").unwrap_or_else(|_| "".to_string());
         let lock_file = std::path::Path::new(&appdata).join("YapBot").join("YapBotTray.lock");
@@ -142,6 +139,41 @@ fn main() {
     
     // Create a shared flag to indicate if the application should exit
     let should_exit = Arc::new(Mutex::new(false));
+    
+    // Check for handover file from GUI app cleanup
+    let appdata = env::var("APPDATA").unwrap_or_else(|_| "".to_string());
+    let handover_path = std::path::Path::new(&appdata).join("YapBot").join("handover.txt");
+    
+    // Check if handover file exists (indicating we're being launched from GUI "to tray" button)
+    if handover_path.exists() {
+        log_and_print!("Handover file detected - waiting for GUI cleanup to complete...");
+        
+        // Poll handover file every 10ms for "READY" signal
+        let mut ready = false;
+        for attempt in 1..=6000 { // Max 1 minute (6000 * 10ms)
+            if let Ok(contents) = std::fs::read_to_string(&handover_path) {
+                if contents.trim() == "READY" {
+                    log_and_print!("Received READY signal from GUI app after {} attempts", attempt);
+                    ready = true;
+                    break;
+                }
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        
+        if !ready {
+            log_and_print!("WARNING: Never received READY signal from GUI app, proceeding anyway");
+        }
+        
+        // Clear the handover file
+        if let Err(e) = std::fs::remove_file(&handover_path) {
+            log_and_print!("WARNING: Failed to remove handover file: {}", e);
+        } else {
+            log_and_print!("Handover file cleared");
+        }
+    } else {
+        log_and_print!("No handover file detected - normal tray startup");
+    }
     
     // Auto-start the bot if it's not already running
     if !bot_manager::is_bot_running() {
@@ -195,13 +227,15 @@ fn main() {
     
         // Add menu items
     app.add_menu_item("Launch Full App", move |app: &mut Application| {
-        // Stop the bot before launching the GUI
+        // STEP 2: Bot is stopped (using same logic as "Stop Bot" button that works)
+        log_and_print!("Stopping bot before launching GUI...");
         if let Err(e) = bot_manager::stop_bot() {
             log_and_print!("ERROR: Failed to stop bot before launching GUI: {}", e);
         } else {
-            log_and_print!("Bot stopped before launching GUI");
+            log_and_print!("Bot stopped successfully");
         }
         
+        // STEP 3: GUI app is launched with force gui launch flag
         if let Err(e) = launch_gui() {
             log_and_print!("ERROR: Failed to launch GUI: {}", e);
         } else {
@@ -257,13 +291,9 @@ fn main() {
         let mut exit_flag = should_exit_clone.lock().unwrap();
         *exit_flag = true;
         
-        // Stop the bot before exiting
-        if let Err(e) = bot_manager::stop_bot() {
-            log_and_print!("ERROR: Failed to stop bot on exit: {}", e);
-        }
-        
-        // Clean up PowerShell processes used for OBS monitoring
-        obs_monitor::cleanup_powershell_processes();
+        // Comprehensive cleanup: kill ALL Python and PowerShell processes
+        bot_manager::kill_all_markovchain_processes();
+        obs_monitor::kill_all_powershell_processes();
         
         app.quit(); // Stop the systray event loop
         Ok::<(), std::io::Error>(())

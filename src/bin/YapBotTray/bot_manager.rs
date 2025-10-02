@@ -91,6 +91,44 @@ pub fn start_bot() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Kill all Python processes running MarkovChainBot.py (comprehensive cleanup)
+/// This ensures no Python bot processes are left running, regardless of tracking
+pub fn kill_all_markovchain_processes() {
+    log_and_print!("[CLEANUP] Searching for all MarkovChainBot.py processes...");
+    
+    // Use tasklist to find ALL Python processes
+    if let Ok(output) = Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq python.exe", "/FO", "CSV"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output() {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            if line.contains("python.exe") {
+                // Extract PID from CSV format
+                if let Some(pid_str) = line.split(',').nth(1) {
+                    if let Ok(pid) = pid_str.trim_matches('"').parse::<u32>() {
+                        // Check if this Python process is running MarkovChainBot.py
+                        if let Ok(wmic_output) = Command::new("wmic")
+                            .args(["process", "where", &format!("ProcessId={}", pid), "get", "CommandLine", "/format:csv"])
+                            .creation_flags(CREATE_NO_WINDOW)
+                            .output() {
+                            
+                            let wmic_str = String::from_utf8_lossy(&wmic_output.stdout);
+                            if wmic_str.contains("MarkovChainBot.py") {
+                                log_and_print!("[CLEANUP] Found MarkovChainBot.py process with PID: {}, killing it", pid);
+                                let _ = Command::new("taskkill")
+                                    .args(["/PID", &pid.to_string(), "/F", "/T"])
+                                    .creation_flags(CREATE_NO_WINDOW)
+                                    .output();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Stop the MarkovChainBot Python process
 pub fn stop_bot() -> Result<(), Box<dyn std::error::Error>> {
     // Find and kill any Python processes running MarkovChainBot.py

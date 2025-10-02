@@ -17,6 +17,34 @@ const FALLBACK_CHECK_INTERVAL_SECONDS: u64 = 5;
 static POWERSHELL_PIDS: Lazy<Arc<Mutex<Vec<u32>>>> = 
     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
+/// Kill all PowerShell processes (comprehensive cleanup)
+/// This ensures no PowerShell processes are left running, regardless of tracking
+pub fn kill_all_powershell_processes() {
+    log_and_print!("[CLEANUP] Searching for all PowerShell processes...");
+    
+    // Kill all powershell.exe processes
+    if let Ok(output) = Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq powershell.exe", "/FO", "CSV"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output() {
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            if line.contains("powershell.exe") {
+                // Extract PID from CSV format
+                if let Some(pid_str) = line.split(',').nth(1) {
+                    if let Ok(pid) = pid_str.trim_matches('"').parse::<u32>() {
+                        log_and_print!("[CLEANUP] Found PowerShell process with PID: {}, killing it", pid);
+                        let _ = Command::new("taskkill")
+                            .args(["/PID", &pid.to_string(), "/F", "/T"])
+                            .creation_flags(CREATE_NO_WINDOW)
+                            .output();
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Clean up all tracked PowerShell processes
 pub fn cleanup_powershell_processes() {
     let pids = {

@@ -1474,10 +1474,25 @@ impl YapBotInstaller {
                                         use std::process::Command;
                                         if let Ok(appdata) = std::env::var("APPDATA") {
                                             let exe_path = std::path::Path::new(&appdata).join("YapBot").join("TwitchYapBot.exe");
-                                            let _ = Command::new(exe_path).spawn();
+                                            if let Ok(child) = Command::new(exe_path).spawn() {
+                                                let child_pid = child.id();
+                                                
+                                                // Spawn a thread to wait for TwitchYapBot window to be ready
+                                                // This prevents VM blue screen issue by ensuring proper initialization
+                                                std::thread::spawn(move || {
+                                                    wait_for_yapbot_window_ready(child_pid);
+                                                    std::process::exit(0);
+                                                });
+                                            } else {
+                                                // Fallback to immediate exit if launch failed
+                                                std::process::exit(0);
+                                            }
                                         }
                                     }
-                                    std::process::exit(0);
+                                    #[cfg(not(windows))]
+                                    {
+                                        std::process::exit(0);
+                                    }
                                 }
                             });
                         });
@@ -1572,6 +1587,116 @@ impl eframe::App for YapBotInstaller {
     }
 
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
-        // Cleanup when the application exits
+    // Cleanup when the application exits
     }
-} 
+}
+
+/// Wait for TwitchYapBot window to be properly initialized before allowing parent process to exit.
+/// This prevents VM blue screen issues by ensuring the child process has fully initialized its graphics context.
+#[cfg(windows)]
+fn wait_for_yapbot_window_ready(child_pid: u32) {
+    use std::time::{Duration, Instant};
+    
+    let timeout = Duration::from_secs(15); // Maximum wait time
+    let start_time = Instant::now();
+    let check_interval = Duration::from_millis(200);
+    
+    // First, wait for the process to be running and stable
+    std::thread::sleep(Duration::from_millis(500));
+    
+    loop {
+        // Check if we've exceeded the timeout
+        if start_time.elapsed() > timeout {
+            eprintln!("[INSTALLER] Timeout waiting for TwitchYapBot window, proceeding with exit");
+            break;
+        }
+        
+        // Check if the child process is still running
+        if !is_process_running(child_pid) {
+            eprintln!("[INSTALLER] TwitchYapBot process {} is no longer running", child_pid);
+            break;
+        }
+        
+        // Look for the TwitchYapBot window by title pattern
+        if is_yapbot_window_ready(child_pid) {
+            // Window is visible and belongs to our child process
+            // Wait a bit more to ensure it's fully initialized
+            std::thread::sleep(Duration::from_millis(1000));
+            println!("[INSTALLER] TwitchYapBot window is ready, safe to exit installer");
+            break;
+        }
+        
+        std::thread::sleep(check_interval);
+    }
+}
+
+/// Check if TwitchYapBot window is ready and visible
+#[cfg(windows)]
+fn is_yapbot_window_ready(child_pid: u32) -> bool {
+    use std::ffi::CString;
+    
+    // Try to get version from embedded version file
+    let version = include_str!("version.txt").trim();
+    let expected_title = format!("Twitch Yap Bot v{}", version);
+    
+    if let Ok(title_cstring) = CString::new(expected_title) {
+        unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{FindWindowA, IsWindowVisible, GetWindowThreadProcessId};
+            use windows::core::PCSTR;
+            
+            let hwnd = FindWindowA(None, PCSTR(title_cstring.as_ptr() as *const u8));
+            if hwnd.0 != 0 {
+                // Found the window, check if it's visible and belongs to our process
+                if IsWindowVisible(hwnd).as_bool() {
+                    let mut window_pid: u32 = 0;
+                    GetWindowThreadProcessId(hwnd, Some(&mut window_pid));
+                    
+                    return window_pid == child_pid;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Check if a process with the given PID is still running
+#[cfg(windows)]
+fn is_process_running(pid: u32) -> bool {
+    unsafe {
+        use windows::Win32::System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, 
+            PROCESSENTRY32W, TH32CS_SNAPPROCESS
+        };
+        use windows::Win32::Foundation::CloseHandle;
+        
+        let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            Ok(handle) => handle,
+            Err(_) => return false,
+        };
+        
+        if snapshot.is_invalid() {
+            return false;
+        }
+        
+        let mut process_entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        
+        let mut found = false;
+        if Process32FirstW(snapshot, &mut process_entry).is_ok() {
+            loop {
+                if process_entry.th32ProcessID == pid {
+                    found = true;
+                    break;
+                }
+                if Process32NextW(snapshot, &mut process_entry).is_err() {
+                    break;
+                }
+            }
+        }
+        
+        let _ = CloseHandle(snapshot);
+        found
+    }
+}
