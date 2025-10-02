@@ -336,20 +336,31 @@ impl App for TwitchYapBotApp {
             self.first_frame = false;
             
             // Check for first launch and show test message
-            if !self.first_launch_handled && self.settings_dialog.settings.first_launch {
-                log_and_print!("[FIRST_LAUNCH] First launch detected, showing test message");
+            // Check if --first-launch flag is set or if settings indicate first launch
+            let force_first_launch = std::env::var("YAPBOT_FORCE_FIRST_LAUNCH").is_ok();
+            let should_show_first_launch = force_first_launch || self.settings_dialog.settings.first_launch;
+            
+            if !self.first_launch_handled && should_show_first_launch {
+                if force_first_launch {
+                    log_and_print!("[FIRST_LAUNCH] First launch forced by --first-launch flag, showing test message");
+                } else {
+                    log_and_print!("[FIRST_LAUNCH] First launch detected, showing test message");
+                }
                 // Show first launch popup
                 self.show_first_launch_popup = true;
                 
                 // Mark first launch as handled
                 self.first_launch_handled = true;
                 
-                // Set first_launch to false in settings for next time
-                self.settings_dialog.settings.first_launch = false;
-                self.settings_dialog.temp_settings.first_launch = false;
-                
-                // Update only the first_launch field in the installer settings file
-                self.settings_dialog.update_first_launch_only(false);
+                // Only update settings if not forced by flag
+                if !force_first_launch {
+                    // Set first_launch to false in settings for next time
+                    self.settings_dialog.settings.first_launch = false;
+                    self.settings_dialog.temp_settings.first_launch = false;
+                    
+                    // Update only the first_launch field in the installer settings file
+                    self.settings_dialog.update_first_launch_only(false);
+                }
             }
             
 
@@ -435,28 +446,21 @@ impl App for TwitchYapBotApp {
                 .fixed_pos(popup_pos)
                 .fixed_size(popup_size)
                 .show(ctx, |ui| {
-                    ui.vertical_centered(|ui| {
-                        // Create a custom text style with larger font
-                        let mut rich_text = egui::RichText::new("Two new app settings were added in v5.0.3:
+                    ui.vertical(|ui| {
+                        // Read the first launch message from embedded file
+                        let message_text = include_str!("firstLaunchMessage.txt");
                         
-                        - Start minimized to tray (runs app in the background)
-                        - Automatically exit when OBS or Streamlabs close
-
-                        This version (v5.1.0) adds MASSIVE performance improvements to Yap Bot when using these new settings, and in general. 
+                        // Parse and display the message with clickable URLs
+                        self.render_message_with_links(ui, message_text);
                         
-                        Running the bot while minimized to the system tray now only uses a few MB of RAM, and ~0% of the CPU.
-                        [tldr; shit work better now lmao]
-                        
-                        (Make sure to save your settings after changing them)");
-                        
-                        // Set the font size (you can adjust this value)
-                        rich_text = rich_text.size(14.0); // Increase from default ~14.0
-                        
-                        ui.label(rich_text);
                         ui.add_space(10.0);
-                        if ui.button("OK").clicked() {
-                            self.show_first_launch_popup = false;
-                        }
+                        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                            // Adjust button size here - [width, height]
+                            let button_size = [100.0, 30.0]; // Change these values to adjust size
+                            if ui.add_sized(button_size, egui::Button::new("OK")).clicked() {
+                                self.show_first_launch_popup = false;
+                            }
+                        });
                     });
                 });
         }
@@ -574,6 +578,89 @@ fn check_window_minimized_optimized() -> bool {
             // Window not found - consider it minimized
             true // If we can't find the window, consider it "minimized"
         }
+    }
+}
+
+impl TwitchYapBotApp {
+    /// Render message text with clickable URLs
+    fn render_message_with_links(&self, ui: &mut egui::Ui, message_text: &str) {
+        let lines: Vec<&str> = message_text.lines().collect();
+        
+        for line in lines {
+            if line.trim().is_empty() {
+                ui.add_space(8.0);
+                continue;
+            }
+            
+            // Check if line contains markdown-style links [URL](text)
+            if line.contains('[') && line.contains(']') && line.contains('(') && line.contains(')') {
+                self.render_line_with_markdown_links(ui, line);
+            } else {
+                // Regular text line
+                let rich_text = egui::RichText::new(line)
+                    .size(14.0);
+                ui.label(rich_text);
+            }
+        }
+    }
+    
+    /// Render a line that may contain markdown-style links [URL](text)
+    fn render_line_with_markdown_links(&self, ui: &mut egui::Ui, line: &str) {
+        // Use horizontal layout to keep everything on the same line
+        ui.horizontal(|ui| {
+            let mut remaining = line;
+            
+            while !remaining.is_empty() {
+                // Look for markdown link pattern [URL](text)
+                if let Some(bracket_start) = remaining.find('[') {
+                    // Display text before the link
+                    if bracket_start > 0 {
+                        let before_link = &remaining[..bracket_start];
+                        let before_text = egui::RichText::new(before_link)
+                            .size(14.0);
+                        ui.label(before_text);
+                    }
+                    
+                    // Find the end of the URL part
+                    if let Some(bracket_end) = remaining[bracket_start..].find(']') {
+                        let url_start = bracket_start + 1; // Skip the '['
+                        let url_end = bracket_start + bracket_end;
+                        let url = &remaining[url_start..url_end];
+                        
+                        // Find the display text in parentheses
+                        let after_bracket = &remaining[url_end + 1..]; // Skip the ']'
+                        if let Some(paren_start) = after_bracket.find('(') {
+                            if let Some(paren_end) = after_bracket[paren_start..].find(')') {
+                                let text_start = paren_start + 1; // Skip the '('
+                                let text_end = paren_start + paren_end;
+                                let display_text = &after_bracket[text_start..text_end];
+                                
+                                // Create clickable link with custom display text
+                                let link_text = egui::RichText::new(display_text)
+                                    .size(14.0)
+                                    .color(egui::Color32::from_rgb(81, 169, 236)) // #51a9ec - same as donation link
+                                    .underline();
+                                
+                                ui.hyperlink_to(link_text, url);
+                                
+                                // Update remaining text to continue parsing
+                                let total_consumed = url_end + 1 + paren_start + paren_end + 1; // +1 for each ')'
+                                remaining = &remaining[total_consumed..];
+                                continue;
+                            }
+                        }
+                    }
+                }
+                
+                // If we get here, no more links found - display remaining text
+                if !remaining.is_empty() {
+                    let rich_text = egui::RichText::new(remaining)
+                        .size(14.0);
+                    ui.label(rich_text);
+                }
+                break;
+            }
+        });
     }
 }
 

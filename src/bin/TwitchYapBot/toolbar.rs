@@ -95,15 +95,27 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                     .font(egui::FontId::new(17.0, egui::FontFamily::Name("consolas_titles".into())))
                     .color(egui::Color32::from_rgb(189, 147, 249));
                 ui.hyperlink_to(title_text, title_url);
+                
+                // Show donation link when app is up to date or newer than public release
+                // (This will be shown unless an update section is displayed)
+                let mut show_donation_link = true;
+                let mut should_show_donation_link = true;
+                
                 // New update check logic
                 if let Some(tag) = app.github_release.tag_name.as_ref() {
                     let current = format!("v{}", crate::get_version());
                     let current_trim = current.trim_start_matches('v');
                     let tag_trim = tag.trim_start_matches('v');
-                    if is_outdated(current_trim, tag_trim) {
+                    
+                    // Get version comparison result (respects override flags)
+                    let (is_outdated, current_is_newer, donation_link_should_show) = get_version_comparison_result(current_trim, tag_trim);
+                    should_show_donation_link = donation_link_should_show;
+                    
+                    if is_outdated {
                         // If current version is greater than tag, show 'Newest public release:'
-                        if current_trim > tag_trim {
+                        if current_is_newer {
                             update_section_shown = true;
+                            show_donation_link = false;
                             ui.horizontal(|ui| {
                                 ui.label(
                                     egui::RichText::new("Newest public release:")
@@ -123,8 +135,11 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                             });
                             // Only add extra space below the buttons, not above
                             ui.add_space(0.0 + 20.0 + 5.0);
+                            // Add negative space to counteract the height added by the "Newest public release" text
+                            ui.add_space(-16.0);
                         } else {
                             update_section_shown = true;
+                            show_donation_link = false;
                             ui.horizontal(|ui| {
                                 ui.label(
                                     egui::RichText::new("Yap Bot's out of date")
@@ -230,6 +245,23 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
                         }
                     }
                 }
+                // Show donation link if no update section is displayed
+                // Use negative spacing to counteract the height added by the link
+                if show_donation_link && should_show_donation_link {
+                    let donation_url = "https://buymeacoffee.com/FosterBarnes";
+                    let donation_text = "buymeacoffee.com/FosterBarnes";
+                    let donation_rich = egui::RichText::new(donation_text)
+                        .font(egui::FontId::new(14.0, egui::FontFamily::Name("consolas".into())))
+                        .color(egui::Color32::from_rgb(81, 169, 236)) // #51a9ec
+                        .size(13.0);
+                    
+                    // Add the donation link
+                    ui.hyperlink_to(donation_rich, donation_url);
+                    
+                    // Immediately add negative space to counteract the height
+                    ui.add_space(-16.0); // Negative space to reduce toolbar height
+                }
+                
                 if !update_section_shown {
                     // Add vertical space to match the height of the update section when not shown
                     ui.add_space(5.0 + 20.0 + 5.0); // 5.0 (space) + 20.0 (button height) + 8.0 (space)
@@ -401,8 +433,43 @@ pub fn render_toolbar(app: &mut TwitchYapBotApp, ctx: &egui::Context, _frame: &m
     });
 }
 
-// Helper function for version comparison (same as in installer)
-fn is_outdated(current: &str, latest: &str) -> bool {
-    // If the tags are not equal, show the update link
-    current != latest
+// Note: is_outdated function removed - now using get_version_comparison_result for flag support
+
+// Helper function to check if version override flags are set
+fn is_force_current_version() -> bool {
+    std::env::var("YAPBOT_FORCE_CURRENT_VERSION").is_ok()
+}
+
+fn is_force_out_of_date_version() -> bool {
+    std::env::var("YAPBOT_FORCE_OUT_OF_DATE_VERSION").is_ok()
+}
+
+fn is_force_unpublished_version() -> bool {
+    std::env::var("YAPBOT_FORCE_UNPUBLISHED_VERSION").is_ok()
+}
+
+// Helper function to get modified version comparison result based on flags
+fn get_version_comparison_result(current_trim: &str, tag_trim: &str) -> (bool, bool, bool) {
+    // Check for override flags first
+    if is_force_current_version() {
+        // Force current version - act as if versions are equal (no update needed)
+        return (false, false, true); // (is_outdated, current_is_newer, show_donation_link)
+    }
+    
+    if is_force_out_of_date_version() {
+        // Force out of date - act as if current is older than latest
+        return (true, false, false); // (is_outdated, current_is_newer, show_donation_link)
+    }
+    
+    if is_force_unpublished_version() {
+        // Force unpublished - act as if current is newer than latest
+        return (true, true, false); // (is_outdated, current_is_newer, show_donation_link)
+    }
+    
+    // Normal comparison logic
+    let is_outdated = current_trim != tag_trim;
+    let current_is_newer = current_trim > tag_trim;
+    let show_donation_link = !is_outdated;
+    
+    (is_outdated, current_is_newer, show_donation_link)
 } 

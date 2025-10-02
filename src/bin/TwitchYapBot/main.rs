@@ -13,11 +13,11 @@ mod settings;
 mod buttons;
 mod config;
 mod log_util;
+mod launch_flags;
 
 mod obs_monitor;
 use eframe::egui;
 use egui::ViewportBuilder;
-use std::env;
 use std::fs;
 use crate::gui::{get_version, load_app_icon, setup_fonts_and_theme};
 use crate::config::{WINDOW_SIZE, MIN_WINDOW_SIZE, app_version};
@@ -51,16 +51,26 @@ fn main() {
         std::env::set_var("YAPBOT_LOG_PATH", &log_path);
     }
 
-    let args: Vec<String> = env::args().collect();
-    if args.iter().any(|a| a == "--settings-window") {
-        // Only run the settings window
+    // Parse launch flags
+    let launch_flags = launch_flags::LaunchFlags::from_args();
+    
+    // Handle settings window launch
+    if launch_flags.should_launch_settings_window() {
         crate::settings::run_settings_window();
         return;
     }
     
+    // Apply version override flags
+    launch_flags.apply();
+    
+    // Log active flags for debugging
+    if launch_flags.has_version_overrides() || launch_flags.should_force_gui() {
+        println!("[LAUNCH_FLAGS] {}", launch_flags.get_active_flags_description());
+    }
+    
     // Check if "start minimized to tray" is enabled and launch tray app immediately
     // Skip this check if --force-gui is specified (used when launching from tray app)
-    if !args.iter().any(|a| a == "--force-gui") {
+    if !launch_flags.should_force_gui() {
         let appdata = std::env::var("APPDATA").unwrap_or_else(|_| "".to_string());
         let appdata_settings_path = std::path::PathBuf::from(format!("{}\\YapBot\\TwitchMarkovChain\\{}", appdata, crate::config::INSTALLER_SETTINGS_FILENAME));
         

@@ -7,7 +7,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - Download and install both x86 & x64 versions of [Microsoft Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
   - [vc_redist.x86.exe](https://aka.ms/vs/17/release/vc_redist.x86.exe)
   - [vc_redist.x64.exe](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.1.0/Yap.Bot.Installer.v5.1.0.exe)
+- [Download the latest release](https://github.com/fosterbarnes/TwitchYapBotInstaller-Rust/releases/download/v5.1.1/Yap.Bot.Installer.v5.1.1.exe)
 - After it's installed, run the shortcut from your desktop or start menu app list. Happy yappin'
 - The install will live at `YourUserName\AppData\Roaming\YapBot`. User specified install locations are planned for the future
 
@@ -25,7 +25,7 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 - The installer, client app,updater & tray app are built using [Rust](https://www.rust-lang.org)
 
 ## Components
-- `Yap Bot Installer v5.1.0.exe` is responsible for making sure python and necessary dependencies are installed to `User\AppData\Roaming\YapBot`
+- `Yap Bot Installer v5.1.1.exe` is responsible for making sure python and necessary dependencies are installed to `User\AppData\Roaming\YapBot`
     - Included binaries: `TwitchYapBot.exe`, `YapBotUpdater.exe` & `YapBotTray.exe`
 	- Included files & folders: `TwitchMarkovChain` & `yap_icon_purple.ico`
 - `TwitchYapBot.exe` is responsible for running the python chat bot, (`TwitchMarkovChain.py`) showing its output, shutting it down, restarting it, and editing its settings. In Yap Bot's previous rendition, these settings had to be changed manually in a .json file
@@ -35,26 +35,26 @@ This bot reads everything in your twitch chat and learns how to speak. Just type
 ## Screenshots
 Yap Bot Installer:
 
-<img width="800" height="610" alt="Yap Bot Installer" src="https://github.com/user-attachments/assets/835e3973-5907-44b6-9071-61347f4ea31d" />
+<img width="800" height="610" alt="Yap Bot Installer" src="https://i.postimg.cc/tC8nzzWj/Twitch-Yap-Bot-M9big5-ETun.png" />
 
 
 
 TwitchYapBot:
 
-<img width="800" height="547" alt="TwitchYapBot" src="https://i.postimg.cc/vHcQfby5/Twitch-Yap-Bot-Hrqd-I8z-Ipq.png" />
+<img width="800" height="547" alt="TwitchYapBot" src="https://i.postimg.cc/tC8nzzWj/Twitch-Yap-Bot-M9big5-ETun.png" />
 
 
 
 YapBotUpdater:
 
-<img width="400" height="112" alt="YapBotUpdater" src="https://github.com/user-attachments/assets/2fef4e40-87e0-4f51-be38-ac98bd5dcf58" />
+<img width="400" height="112" alt="YapBotUpdater" src="https://i.postimg.cc/tC8nzzWj/Twitch-Yap-Bot-M9big5-ETun.png" />
 
 
 
 
 YapBotTray:
 
-<img width="302" height="213" alt="YapBotTray" src="https://i.postimg.cc/9QNJ2mzd/JGj-Z4ccaf6.png" />
+<img width="302" height="213" alt="YapBotTray" src="https://i.postimg.cc/tC8nzzWj/Twitch-Yap-Bot-M9big5-ETun.png" />
 
 
 
